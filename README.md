@@ -1,6 +1,6 @@
 # Tuff
 
-Every train in Sweden, live on the map, with live station boards.
+Every train in Sweden, live on the map, with live station boards: https://tuff-tuff.apps.j4labs.se
 
 Trains move along the real rails as Trafikverket reports their positions. Click a train to follow
 it, search for a train, station or operator, filter by operator, or open a station for its
@@ -52,6 +52,9 @@ rules for coding agents.
 
 `docker build -t tuff .` gives one small image. It needs `TRAFIKVERKET_API_KEY`, and a persistent
 volume at `/data` for the SQLite file (local disk, not a network file system).
+
+It runs on frost (project and service `tuff`, volume `tuff-data` at `/data`, the key as a service
+variable); every push to `main` deploys.
 
 ## Data
 
