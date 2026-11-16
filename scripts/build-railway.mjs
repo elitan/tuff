@@ -26,7 +26,7 @@ async function fetchChunk(bbox) {
       try {
         const res = await fetch(url, {
           method: "POST",
-          headers: { "User-Agent": "spar-train-map/0.1", "Content-Type": "application/x-www-form-urlencoded" },
+          headers: { "User-Agent": "tuff-train-map/0.1", "Content-Type": "application/x-www-form-urlencoded" },
           body: "data=" + encodeURIComponent(query),
           signal: AbortSignal.timeout(360_000),
         });

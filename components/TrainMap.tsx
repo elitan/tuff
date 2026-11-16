@@ -362,7 +362,7 @@ export default function TrainMap() {
       <header className="brand glass">
         <Logo />
         <div>
-          <div className="word">Spår</div>
+          <div className="word">Tuff</div>
           <div className="sub">Sveriges tåg i realtid</div>
         </div>
       </header>

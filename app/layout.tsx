@@ -7,7 +7,7 @@ const sans = Geist({ subsets: ["latin"], variable: "--font-sans" });
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "Spår — Sveriges tåg live",
+  title: "Tuff — Sveriges tåg live",
   description: "Every train in Sweden, live on the map, with live station boards.",
 };
 
