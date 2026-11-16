@@ -28,6 +28,14 @@ const ATTRIBUTION =
 
 type TrainState = {
   marker: L.Marker;
+  // the marker's elements, looked up once (not per frame)
+  el: HTMLElement;
+  tm: HTMLElement;
+  svg: SVGSVGElement;
+  dirEl: SVGElement;
+  nodirEl: SVGElement;
+  known: boolean | null;    // whether the heading is drawn (null: not set yet)
+  drawn: string;            // last position written to the DOM, to skip unchanged trains
   track: Track;         // buffered GPS fixes along the rails, played back smoothly
   angle: number;        // drawn heading (degrees, cumulative so turns take the short way)
   target: number | null;// heading we're turning towards (null = unknown → show a dot)
@@ -38,9 +46,11 @@ type Row = { n: string; from: string; to: string; product: string; brand: Brand;
 
 // Top-down train: a lead car with a rounded nose and windscreen, coupled to a second car.
 // Drawn pointing up (north) and rotated to the direction of travel. Plain dot until we know the heading.
-const ICON = L.divIcon({
+// The train number is part of the marker (not a Leaflet tooltip), so it moves with the
+// marker's transform: a tooltip is repositioned on every move, reading its size each time.
+const icon = (n: string) => L.divIcon({
   className: "", iconSize: [44, 44], iconAnchor: [22, 22],
-  html: `<div class="tm"><span class="halo"></span><svg viewBox="0 0 44 44">
+  html: `<div class="tm"><span class="halo"></span><span class="tlabel">${n.replace(/[^\w-]/g, "")}</span><svg viewBox="0 0 44 44">
     <g class="dir">
       <path class="body" d="M16.5 21 V9.5 C16.5 5 19 2.5 22 2.5 C25 2.5 27.5 5 27.5 9.5 V21 Q27.5 22.5 26 22.5 H18 Q16.5 22.5 16.5 21 Z"/>
       <path class="glass" d="M18.6 8.6 C19.2 6 20.4 4.9 22 4.9 C23.6 4.9 24.8 6 25.4 8.6 Z"/>
@@ -88,19 +98,17 @@ export default function TrainMap() {
     // Ease the drawn heading towards the target heading (per frame, no CSS transition,
     // so rotation and movement stay in lockstep).
     const turn = (t: TrainState, dt: number) => {
-      const svg = t.marker.getElement()?.querySelector("svg");
-      if (!svg) return;
       const known = t.target != null;
-      if ((svg.dataset.known === "1") !== known) {
-        svg.dataset.known = known ? "1" : "0";
-        (svg.querySelector(".dir") as SVGElement).style.display = known ? "" : "none";
-        (svg.querySelector(".nodir") as SVGElement).style.display = known ? "none" : "";
+      if (t.known !== known) {
+        t.known = known;
+        t.dirEl.style.display = known ? "" : "none";
+        t.nodirEl.style.display = known ? "none" : "";
       }
       if (t.target == null) return;
       const delta = ((t.target - t.angle) % 360 + 540) % 360 - 180;
-      if (Math.abs(delta) < 0.05 && svg.style.transform) return;
+      if (Math.abs(delta) < 0.05 && t.svg.style.transform) return;
       t.angle += delta * Math.min(1, dt / TURN_MS);
-      svg.style.transform = `rotate(${t.angle.toFixed(2)}deg)`;
+      t.svg.style.transform = `rotate(${t.angle.toFixed(2)}deg)`;
     };
 
     // Leaflet rounds marker and pan positions to whole pixels, which makes slow
@@ -109,20 +117,17 @@ export default function TrainMap() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const m = map as any; // _rawPanBy / _animatingZoom / _getMapPanePos are Leaflet internals
     let lastMoveEnd = 0;
-    const cls = (t: TrainState | undefined, c: string, on: boolean) =>
-      t?.marker.getElement()?.querySelector(".tm")?.classList.toggle(c, on);
+    const cls = (t: TrainState | undefined, c: string, on: boolean) => t?.tm.classList.toggle(c, on);
 
     // ----- operator filter -----
     const brandFor = (n: string) => brandOf(info[n]?.product, info[n]?.owner);
     // colour each train by company, and hide the ones the filter excludes
     const styleTrain = (n: string, t: TrainState) => {
-      const el = t.marker.getElement();
-      if (!el) return;
       const b = brandFor(n);
-      const tm = el.querySelector(".tm") as HTMLElement | null;
-      if (tm && tm.dataset.brand !== b.key) { tm.dataset.brand = b.key; tm.style.setProperty("--brand", b.color); }
+      if (t.tm.dataset.brand !== b.key) { t.tm.dataset.brand = b.key; t.tm.style.setProperty("--brand", b.color); }
       const want = brandRef.current;
-      el.style.display = !want || b.key === want || n === followedRef.current ? "" : "none";
+      const display = !want || b.key === want || n === followedRef.current ? "" : "none";
+      if (t.el.style.display !== display) t.el.style.display = display;
     };
     const applyFilter = () => { for (const [n, t] of trains) styleTrain(n, t); };
 
@@ -227,10 +232,13 @@ export default function TrainMap() {
       const ll: [number, number] = [p.lat, p.lon];
       const t = trains.get(p.n);
       if (!t) {
-        const marker = L.marker(ll, { icon: ICON, keyboard: false })
-          .bindTooltip(p.n, { permanent: true, direction: "right", offset: [14, 0], className: "tlabel" })
-          .addTo(map);
-        const state: TrainState = { marker, track: new Track(ll, p.ts), angle: p.bearing ?? 0, target: p.bearing, p };
+        const marker = L.marker(ll, { icon: icon(p.n), keyboard: false }).addTo(map);
+        const el = marker.getElement()!, svg = el.querySelector("svg")!;
+        const state: TrainState = {
+          marker, el, tm: el.querySelector(".tm")!, svg,
+          dirEl: svg.querySelector(".dir")!, nodirEl: svg.querySelector(".nodir")!, known: null, drawn: "",
+          track: new Track(ll, p.ts), angle: p.bearing ?? 0, target: p.bearing, p,
+        };
         trains.set(p.n, state);
         marker.on("click", () => follow(p.n));
         turn(state, TURN_MS);
@@ -242,6 +250,11 @@ export default function TrainMap() {
         t.p = p;
       }
     };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const m_latlng = (marker: L.Marker, at: [number, number]) => { (marker as any)._latlng = L.latLng(at[0], at[1]); };
+    // after a zoom, Leaflet has placed every marker itself: redraw them all
+    map.on("zoomend viewreset", () => { for (const t of trains.values()) t.drawn = ""; });
 
     let lastFrame = performance.now(), lastFar = 0;
     const animate = (frame: number) => {
@@ -260,9 +273,14 @@ export default function TrainMap() {
         const isFollowed = n === followedN;
         // only touch the DOM for trains on screen (and the followed one)
         if (!isFollowed && (!drawAll || !view.contains(at))) continue;
-        t.marker.setLatLng(at);                     // keeps Leaflet (tooltip, getLatLng) in sync
-        const el = t.marker.getElement();
-        if (el && !zooming) L.DomUtil.setPosition(el, exactLayerPoint(at));
+        // Keep Leaflet's idea of the position current (zoom, getLatLng) without setLatLng(),
+        // which fires events and repositions the marker a second time.
+        m_latlng(t.marker, at);
+        if (!zooming) {
+          // write the DOM only when the train moved (many stand still at stations)
+          const pt = exactLayerPoint(at), key = `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`;
+          if (key !== t.drawn) { t.drawn = key; L.DomUtil.setPosition(t.el, pt); }
+        }
         turn(t, far ? 1000 : dt);
       }
       // keep the followed train exactly centred by panning the map by fractional pixels

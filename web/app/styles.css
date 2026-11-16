@@ -90,14 +90,14 @@ button { font: inherit; color: inherit; }
 .tm.followed .halo { background: var(--signal-soft); opacity: 1; transform: scale(1); animation: ping 2s var(--ease) infinite; }
 @keyframes ping { 0% { transform: scale(.7); opacity: 1; } 100% { transform: scale(2.2); opacity: 0; } }
 
-/* train number labels, only when zoomed in */
-.leaflet-tooltip.tlabel {
+/* train number labels, only when zoomed in (part of the marker, so they move with it) */
+.tm .tlabel {
+  position: absolute; left: 36px; top: 50%; transform: translateY(-50%); white-space: nowrap; pointer-events: none;
   background: var(--glass-strong); color: var(--ink); border: 1px solid var(--hair); border-radius: 6px;
   box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 1px 6px; font: 600 11px/16px "Geist Mono Variable", monospace;
   font-variant-numeric: tabular-nums; display: none;
 }
-.leaflet-tooltip.tlabel::before { display: none; }
-.labels .leaflet-tooltip.tlabel { display: block; }
+.labels .tm .tlabel { display: block; }
 
 /* ───────── brand ───────── */
 .brand {
