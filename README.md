@@ -1,6 +1,6 @@
 # Tuff
 
-Every train in Sweden, live on the map, with live station boards: https://tuff-tuff.apps.j4labs.se
+Every train in Sweden, live on the map, with live station boards: https://tuff.apps.j4labs.se
 
 Trains move along the real rails as Trafikverket reports their positions. Click a train to follow
 it, search for a train, station or operator, filter by operator, or open a station for its
