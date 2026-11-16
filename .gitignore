@@ -1,10 +1,9 @@
-node_modules
-.next
-out
-.env*.local
-next-env.d.ts
-*.tsbuildinfo
-
-# local tooling
-.claude/
-.DS_Store
+/target
+/web/node_modules
+/web/dist
+.env
+/.dev
+/web/tsconfig.tsbuildinfo
+/web/test-results
+/web/playwright-report
+/data

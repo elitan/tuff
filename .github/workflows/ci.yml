@@ -1,0 +1,32 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      # A file, created by the first step (`just ci` migrates it).
+      DATABASE_URL: sqlite:data/ci.db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: oven-sh/setup-bun@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just,sqlx-cli
+      - run: cd web && bun install --frozen-lockfile
+      # Migrates a fresh database, then verifies every generated file is up to
+      # date and runs format, lint, tests and the frontend build.
+      - run: just ci
+      # Browser smoke tests: the real binary (frontend embedded) in headless Chromium.
+      - run: cd web && bunx playwright install --with-deps chromium
+      - run: just e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: web/test-results/
+          if-no-files-found: ignore

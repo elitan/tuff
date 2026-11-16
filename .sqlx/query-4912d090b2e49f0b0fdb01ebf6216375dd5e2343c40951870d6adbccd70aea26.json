@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT at FROM refreshes WHERE name = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "at",
+        "ordinal": 0,
+        "type_info": "Datetime",
+        "origin": {
+          "Table": {
+            "table": "refreshes",
+            "name": "at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4912d090b2e49f0b0fdb01ebf6216375dd5e2343c40951870d6adbccd70aea26"
+}

@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT number, from_name, to_name, product, owner FROM trains ORDER BY number",
+  "describe": {
+    "columns": [
+      {
+        "name": "number",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "trains",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "name": "from_name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "trains",
+            "name": "from_name"
+          }
+        }
+      },
+      {
+        "name": "to_name",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "trains",
+            "name": "to_name"
+          }
+        }
+      },
+      {
+        "name": "product",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "trains",
+            "name": "product"
+          }
+        }
+      },
+      {
+        "name": "owner",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "trains",
+            "name": "owner"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "381e106b574f2bb4af03ebf1e2a34df7a5b2e0ee8dec21e0eee46ca0746ad2c5"
+}

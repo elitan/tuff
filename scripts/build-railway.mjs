@@ -1,5 +1,5 @@
 // Downloads the railway network for Sweden (plus cross-border lines to Oslo, Copenhagen, Narvik)
-// from OpenStreetMap (Overpass API) and writes a compact graph to data/railway.json.
+// from OpenStreetMap (Overpass API) and writes a compact graph to server/data/railway.json.
 //   node scripts/build-railway.mjs                 (download + build)
 //   node scripts/build-railway.mjs a.json b.json   (build from existing Overpass JSON files)
 // The area is fetched in chunks, because public Overpass servers refuse one query this big.
@@ -74,5 +74,5 @@ for (const w of elements) {
 }
 
 mkdirSync(new URL("../data/", import.meta.url), { recursive: true });
-writeFileSync(new URL("../data/railway.json", import.meta.url), JSON.stringify({ coords, ways }));
-console.log(`Wrote data/railway.json: ${coords.length / 2} nodes, ${ways.length} ways`);
+writeFileSync(new URL("../server/data/railway.json", import.meta.url), JSON.stringify({ coords, ways }));
+console.log(`Wrote server/data/railway.json: ${coords.length / 2} nodes, ${ways.length} ways`);

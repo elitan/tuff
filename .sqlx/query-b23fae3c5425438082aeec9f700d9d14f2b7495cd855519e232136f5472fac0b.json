@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT sig, short_name FROM stations",
+  "describe": {
+    "columns": [
+      {
+        "name": "sig",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "stations",
+            "name": "sig"
+          }
+        }
+      },
+      {
+        "name": "short_name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "stations",
+            "name": "short_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b23fae3c5425438082aeec9f700d9d14f2b7495cd855519e232136f5472fac0b"
+}

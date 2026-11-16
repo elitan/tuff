@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT sig, name, lat AS \"lat!: f64\", lon AS \"lon!: f64\" FROM stations\n           WHERE advertised AND lat IS NOT NULL AND lon IS NOT NULL ORDER BY sig",
+  "describe": {
+    "columns": [
+      {
+        "name": "sig",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "stations",
+            "name": "sig"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "stations",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "lat!: f64",
+        "ordinal": 2,
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "stations",
+            "name": "lat"
+          }
+        }
+      },
+      {
+        "name": "lon!: f64",
+        "ordinal": 3,
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "stations",
+            "name": "lon"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "821a52f9c05eab675e7804a03971af1317d73a92e3e1258da156609fb109031b"
+}

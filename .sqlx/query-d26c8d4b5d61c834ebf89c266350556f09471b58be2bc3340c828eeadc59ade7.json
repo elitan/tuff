@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM positions WHERE ts < $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "d26c8d4b5d61c834ebf89c266350556f09471b58be2bc3340c828eeadc59ade7"
+}

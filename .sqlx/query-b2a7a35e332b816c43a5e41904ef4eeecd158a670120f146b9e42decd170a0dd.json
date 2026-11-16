@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO trains (number, from_name, to_name, product, owner) VALUES ($1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "b2a7a35e332b816c43a5e41904ef4eeecd158a670120f146b9e42decd170a0dd"
+}

@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT train, ts, snap FROM positions",
+  "describe": {
+    "columns": [
+      {
+        "name": "train",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "positions",
+            "name": "train"
+          }
+        }
+      },
+      {
+        "name": "ts",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "positions",
+            "name": "ts"
+          }
+        }
+      },
+      {
+        "name": "snap",
+        "ordinal": 2,
+        "type_info": "Null",
+        "origin": {
+          "Table": {
+            "table": "positions",
+            "name": "snap"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "40f9e852cf772fe21c4a7d36c4be2b2a41493796f9b4b913e4ef24de61ecd8a6"
+}

@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT max(received_at) AS \"latest: i64\" FROM positions",
+  "describe": {
+    "columns": [
+      {
+        "name": "latest: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "0f9fe50289d6c749c262f6e50616d9579bc9db6da6ec34fb6d3e35d8eca8e259"
+}
