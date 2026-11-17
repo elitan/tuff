@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO prediction_errors (day, method, horizon_s, n, sum_abs, within_100, within_250, within_500)\n             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n             ON CONFLICT (day, method, horizon_s) DO UPDATE SET n = n + excluded.n,\n               sum_abs = sum_abs + excluded.sum_abs, within_100 = within_100 + excluded.within_100,\n               within_250 = within_250 + excluded.within_250, within_500 = within_500 + excluded.within_500",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "3002a59057717162d292bf9087e00e3f95c765be5c77747b232eb9f1842d9a52"
+}

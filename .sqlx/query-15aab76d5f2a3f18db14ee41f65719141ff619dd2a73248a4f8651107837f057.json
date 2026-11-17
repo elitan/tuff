@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT cx, cy, sector, product, n, sum_v, sum_v2, n_stopped FROM track_speeds",
+  "describe": {
+    "columns": [
+      {
+        "name": "cx",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_speeds",
+            "name": "cx"
+          }
+        }
+      },
+      {
+        "name": "cy",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_speeds",
+            "name": "cy"
+          }
+        }
+      },
+      {
+        "name": "sector",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_speeds",
+            "name": "sector"
+          }
+        }
+      },
+      {
+        "name": "product",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "track_speeds",
+            "name": "product"
+          }
+        }
+      },
+      {
+        "name": "n",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_speeds",
+            "name": "n"
+          }
+        }
+      },
+      {
+        "name": "sum_v",
+        "ordinal": 5,
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "track_speeds",
+            "name": "sum_v"
+          }
+        }
+      },
+      {
+        "name": "sum_v2",
+        "ordinal": 6,
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "track_speeds",
+            "name": "sum_v2"
+          }
+        }
+      },
+      {
+        "name": "n_stopped",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_speeds",
+            "name": "n_stopped"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "15aab76d5f2a3f18db14ee41f65719141ff619dd2a73248a4f8651107837f057"
+}

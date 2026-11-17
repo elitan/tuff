@@ -1,0 +1,28 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT count(*) FILTER (WHERE n >= $1) AS \"cells!: i64\", coalesce(sum(n), 0) AS \"samples!: i64\"\n           FROM track_speeds",
+  "describe": {
+    "columns": [
+      {
+        "name": "cells!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "samples!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "a46e72bbfb4861212eceffb5fb77eba5b92f9464aea8663873a34f5816c88e5a"
+}

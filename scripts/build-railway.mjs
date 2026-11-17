@@ -73,6 +73,6 @@ for (const w of elements) {
   }));
 }
 
-mkdirSync(new URL("../data/", import.meta.url), { recursive: true });
+mkdirSync(new URL("../server/data/", import.meta.url), { recursive: true });
 writeFileSync(new URL("../server/data/railway.json", import.meta.url), JSON.stringify({ coords, ways }));
 console.log(`Wrote server/data/railway.json: ${coords.length / 2} nodes, ${ways.length} ways`);

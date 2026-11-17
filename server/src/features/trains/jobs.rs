@@ -11,6 +11,7 @@ use serde_json::Value;
 
 use super::db::{self, StoredFix};
 use super::railway::{Snap, snap_lat_lon, track_path};
+use super::speeds::{Memory, Observed};
 use super::trafikverket::{RawFix, SseParser, fixes};
 use super::types::Fix;
 use crate::AppState;
@@ -38,12 +39,16 @@ impl Job for FollowPositions {
 pub async fn follow_positions(state: AppState, _job: FollowPositions) -> anyhow::Result<()> {
     let deadline = Instant::now() + FOLLOW_FOR;
     let mut last = db::last_snaps(&state.db).await?;
+    let mut learn = Learn {
+        memory: Memory::new(db::speeds(&state.db).await?),
+        products: db::products(&state.db).await?,
+    };
     let mut since = Utc::now() - chrono::Duration::minutes(10);
     let mut next_cleanup = Instant::now();
     // The stream can end early (upstream restarts): reconnect until the deadline.
     while Instant::now() < deadline {
         let (snapshot, url) = state.trafikverket.position_stream(since).await?;
-        last = ingest(&state, snapshot, last).await?;
+        last = ingest(&state, snapshot, last, &mut learn).await?;
         since = Utc::now() - chrono::Duration::minutes(1);
 
         let mut res = state.trafikverket.open_stream(&url).await?;
@@ -73,7 +78,7 @@ pub async fn follow_positions(state: AppState, _job: FollowPositions) -> anyhow:
                 }
             }
             if !batch.is_empty() {
-                last = ingest(&state, batch, last).await?;
+                last = ingest(&state, batch, last, &mut learn).await?;
             }
             if Instant::now() >= next_cleanup {
                 db::delete_fixes_before(&state.db, Utc::now().timestamp_millis() - KEEP_MS).await?;
@@ -86,10 +91,41 @@ pub async fn follow_positions(state: AppState, _job: FollowPositions) -> anyhow:
 
 type Last = HashMap<String, (i64, Option<Snap>)>;
 
-/// Snap a batch of fixes (on the CPU pool: routing is real work) and store them.
-async fn ingest(state: &AppState, raw: Vec<RawFix>, last: Last) -> anyhow::Result<Last> {
+/// Learned speeds and train products, kept for the life of one follower.
+struct Learn {
+    memory: Memory,
+    products: HashMap<String, String>,
+}
+
+/// Snap a batch of fixes (on the CPU pool: routing is real work) and store them, then learn
+/// speeds from the new ones and grade guesses against them.
+async fn ingest(
+    state: &AppState,
+    raw: Vec<RawFix>,
+    last: Last,
+    learn: &mut Learn,
+) -> anyhow::Result<Last> {
     let (stored, last) = northstack::cpu::spawn(move || snap_all(raw, last)).await?;
-    db::store_fixes(&state.db, &stored, Utc::now().timestamp_millis()).await?;
+    let new = db::store_fixes(&state.db, &stored, Utc::now().timestamp_millis()).await?;
+    let (mut samples, mut grades) = (vec![], vec![]);
+    for (f, new) in stored.iter().zip(new) {
+        let product = learn.products.get(&f.fix.n).map_or("", String::as_str);
+        let (s, g) = learn.memory.observe(&Observed {
+            train: &f.fix.n,
+            product,
+            ts: f.fix.ts,
+            at: [f.fix.lat, f.fix.lon],
+            bearing: f.fix.bearing,
+            speed: f.fix.speed,
+            path: f.fix.path.as_deref(),
+            new: new && f.snap.is_some(),
+        });
+        samples.extend(s);
+        grades.extend(g);
+    }
+    db::add_speeds(&state.db, &samples).await?;
+    let day = Utc::now().format("%Y-%m-%d").to_string();
+    db::add_grades(&state.db, &day, &grades).await?;
     Ok(last)
 }
 

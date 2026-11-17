@@ -7,5 +7,7 @@ export type { Fix } from "./types/Fix";
 export type { MapStation } from "./types/MapStation";
 export type { Positions } from "./types/Positions";
 export type { PositionsInput } from "./types/PositionsInput";
+export type { PredictionRow } from "./types/PredictionRow";
+export type { PredictionStats } from "./types/PredictionStats";
 export type { RpcError } from "./types/RpcError";
 export type { TrainInfo } from "./types/TrainInfo";

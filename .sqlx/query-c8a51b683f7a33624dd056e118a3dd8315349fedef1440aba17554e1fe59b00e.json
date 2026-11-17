@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT day, method, horizon_s, n, sum_abs, within_100, within_250, within_500\n         FROM prediction_errors WHERE day >= $1 ORDER BY day DESC, horizon_s, method",
+  "describe": {
+    "columns": [
+      {
+        "name": "day",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "prediction_errors",
+            "name": "day"
+          }
+        }
+      },
+      {
+        "name": "method",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "prediction_errors",
+            "name": "method"
+          }
+        }
+      },
+      {
+        "name": "horizon_s",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "prediction_errors",
+            "name": "horizon_s"
+          }
+        }
+      },
+      {
+        "name": "n",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "prediction_errors",
+            "name": "n"
+          }
+        }
+      },
+      {
+        "name": "sum_abs",
+        "ordinal": 4,
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "prediction_errors",
+            "name": "sum_abs"
+          }
+        }
+      },
+      {
+        "name": "within_100",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "prediction_errors",
+            "name": "within_100"
+          }
+        }
+      },
+      {
+        "name": "within_250",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "prediction_errors",
+            "name": "within_250"
+          }
+        }
+      },
+      {
+        "name": "within_500",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "prediction_errors",
+            "name": "within_500"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c8a51b683f7a33624dd056e118a3dd8315349fedef1440aba17554e1fe59b00e"
+}

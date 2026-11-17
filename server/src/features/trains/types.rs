@@ -100,3 +100,34 @@ pub struct Board {
     pub departures: Vec<BoardRow>,
     pub arrivals: Vec<BoardRow>,
 }
+
+/// One day's totals for one way of guessing where a silent train is.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct PredictionRow {
+    /// UTC day, e.g. "2026-11-17".
+    pub day: String,
+    /// "hold", "last_speed", "reported", "learned" or "learned_scaled".
+    pub method: String,
+    /// Seconds since the fix the guess starts from.
+    pub horizon_s: i64,
+    /// Guesses graded.
+    pub n: i64,
+    /// Mean distance along the track from where the train really was.
+    pub mean_error_m: f64,
+    pub within_100_pct: f64,
+    pub within_250_pct: f64,
+    pub within_500_pct: f64,
+}
+
+/// How well guesses about silent trains are doing, and how much has been learned.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct PredictionStats {
+    /// ~200 m cells of track (per direction and product) with a learned speed.
+    pub learned_cells: i64,
+    /// Speed samples taken in total.
+    pub samples: i64,
+    /// Last 14 days, newest first.
+    pub rows: Vec<PredictionRow>,
+}

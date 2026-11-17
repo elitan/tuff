@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO track_speeds (cx, cy, sector, product, n, sum_v, sum_v2, n_stopped)\n             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n             ON CONFLICT (cx, cy, sector, product) DO UPDATE SET n = n + excluded.n,\n               sum_v = sum_v + excluded.sum_v, sum_v2 = sum_v2 + excluded.sum_v2,\n               n_stopped = n_stopped + excluded.n_stopped",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "737806831a5f401630137baeb0d40d27b6052c13cde72b85f4e6eb673ea35b0f"
+}

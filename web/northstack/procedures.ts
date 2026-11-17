@@ -4,11 +4,13 @@ import type { BoardInput } from "./types/BoardInput";
 import type { MapStation } from "./types/MapStation";
 import type { Positions } from "./types/Positions";
 import type { PositionsInput } from "./types/PositionsInput";
+import type { PredictionStats } from "./types/PredictionStats";
 import type { TrainInfo } from "./types/TrainInfo";
 
 export type Procedures = {
   "trains.board": { kind: "query"; input: BoardInput; output: Board };
   "trains.list": { kind: "query"; input: null; output: Array<TrainInfo> };
   "trains.positions": { kind: "query"; input: PositionsInput; output: Positions };
+  "trains.predictionStats": { kind: "query"; input: null; output: PredictionStats };
   "trains.stations": { kind: "query"; input: null; output: Array<MapStation> };
 };

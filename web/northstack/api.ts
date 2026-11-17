@@ -7,6 +7,7 @@ export const api = {
     board: query("trains.board"),
     list: query("trains.list"),
     positions: query("trains.positions"),
+    predictionStats: query("trains.predictionStats"),
     stations: query("trains.stations"),
   },
 } as const;

@@ -5,6 +5,7 @@ mod db;
 mod jobs;
 mod procedures;
 mod railway;
+mod speeds;
 mod trafikverket;
 pub mod types;
 
@@ -19,6 +20,7 @@ pub fn rpc() -> Rpc<AppState> {
         .query("trains.list", procedures::list)
         .query("trains.stations", procedures::stations)
         .query("trains.board", procedures::board)
+        .query("trains.predictionStats", procedures::prediction_stats)
 }
 
 pub fn jobs() -> Jobs<AppState> {

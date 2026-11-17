@@ -34,6 +34,19 @@ pub async fn positions(ctx: Ctx<AppState>, input: PositionsInput) -> RpcResult<P
     })
 }
 
+/// How well silent trains' positions are being guessed, and how much speed data is learned.
+pub async fn prediction_stats(ctx: Ctx<AppState>, _input: ()) -> RpcResult<PredictionStats> {
+    let since = (Utc::now() - chrono::Duration::days(13))
+        .format("%Y-%m-%d")
+        .to_string();
+    let (learned_cells, samples) = db::speed_coverage(&ctx.state.db, 5).await?;
+    Ok(PredictionStats {
+        learned_cells,
+        samples,
+        rows: db::prediction_rows(&ctx.state.db, &since).await?,
+    })
+}
+
 /// Advertised trains running now (origin, destination, operator).
 pub async fn list(ctx: Ctx<AppState>, _input: ()) -> RpcResult<Vec<TrainInfo>> {
     ensure_trains(&ctx.state, true).await?;

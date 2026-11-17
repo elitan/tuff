@@ -11,12 +11,22 @@ use serde::{Deserialize, Serialize};
 
 const SNAP_RADIUS_M: f64 = 80.0; // GPS further than this from any track isn't snapped
 const CELL_M: f64 = 250.0; // spatial grid cell size
-const LAT0: f64 = 59.5; // projection origin (Mälardalen)
+const LAT0: f64 = 59.5; // x is degrees longitude scaled as at this latitude
 const MY: f64 = 110_540.0; // metres per degree latitude
 
-/// Metres per degree longitude at LAT0.
+/// Projected x units per degree longitude (metres at LAT0).
 fn mx() -> f64 {
-    111_320.0 * (LAT0 * std::f64::consts::PI / 180.0).cos()
+    111_320.0 * LAT0.to_radians().cos()
+}
+
+/// Real metres per projected x unit at projected y: shrinks going north (0.77 at 67° N).
+fn kx(y: f64) -> f64 {
+    (y / MY).to_radians().cos() / LAT0.to_radians().cos()
+}
+
+/// Metres between two projected points (local scale at their mid latitude).
+fn metres(ax: f64, ay: f64, bx: f64, by: f64) -> f64 {
+    ((ax - bx) * kx((ay + by) / 2.0)).hypot(ay - by)
 }
 
 /// A point on the track graph: `t` along the segment from node `a` to node `b`, at (x, y) metres.
@@ -103,12 +113,13 @@ fn build(raw: RawGraph) -> Graph {
 impl Graph {
     fn dist(&self, a: u32, b: u32) -> f64 {
         let (a, b) = (a as usize, b as usize);
-        (self.xs[a] - self.xs[b]).hypot(self.ys[a] - self.ys[b])
+        metres(self.xs[a], self.ys[a], self.xs[b], self.ys[b])
     }
 
     /// Track points within SNAP_RADIUS_M of a position, nearest first (at most one per segment).
     fn candidates(&self, lat: f64, lon: f64) -> Vec<(Snap, f64)> {
         let (px, py) = (lon * mx(), lat * MY);
+        let k = kx(py); // x distances in real metres near here
         let (cx, cy) = ((px / CELL_M).floor() as i64, (py / CELL_M).floor() as i64);
         let mut seen = HashSet::new();
         let mut out = Vec::new();
@@ -121,10 +132,12 @@ impl Graph {
                     let (a, b) = (self.seg_a[s as usize], self.seg_b[s as usize]);
                     let (ax, ay) = (self.xs[a as usize], self.ys[a as usize]);
                     let (vx, vy) = (self.xs[b as usize] - ax, self.ys[b as usize] - ay);
-                    let len2 = Some(vx * vx + vy * vy).filter(|l| *l > 0.0).unwrap_or(1.0);
-                    let t = (((px - ax) * vx + (py - ay) * vy) / len2).clamp(0.0, 1.0);
+                    let len2 = Some(k * k * vx * vx + vy * vy)
+                        .filter(|l| *l > 0.0)
+                        .unwrap_or(1.0);
+                    let t = ((k * k * (px - ax) * vx + (py - ay) * vy) / len2).clamp(0.0, 1.0);
                     let (x, y) = (ax + t * vx, ay + t * vy);
-                    let d = (px - x).hypot(py - y);
+                    let d = ((px - x) * k).hypot(py - y);
                     if d <= SNAP_RADIUS_M {
                         out.push((Snap { a, b, t, x, y }, d));
                     }
@@ -140,7 +153,7 @@ impl Graph {
         let seg_len = |p: &Snap| self.dist(p.a, p.b);
         // same segment: straight along it
         if (s.a == e.a && s.b == e.b) || (s.a == e.b && s.b == e.a) {
-            return Some(((s.x - e.x).hypot(s.y - e.y), vec![(s.x, s.y), (e.x, e.y)]));
+            return Some((metres(s.x, s.y, e.x, e.y), vec![(s.x, s.y), (e.x, e.y)]));
         }
         let mut best: HashMap<u32, f64> = HashMap::new();
         let mut prev: HashMap<u32, Option<u32>> = HashMap::new();
@@ -227,7 +240,7 @@ pub fn track_path(prev: Option<&Snap>, lat: f64, lon: f64) -> (Option<Snap>, Opt
     // reachable by the shortest believable route from where the train was.
     let (mut best_snap, mut best_path, mut best_score) = (first, None, f64::INFINITY);
     for (c, d) in &cands {
-        let straight = (c.x - prev.x).hypot(c.y - prev.y);
+        let straight = metres(c.x, c.y, prev.x, prev.y);
         let Some((cost, pts)) = g.route(prev, c, straight * 1.5 + 300.0) else {
             continue;
         };
@@ -285,10 +298,22 @@ mod tests {
     }
 
     #[test]
+    fn distances_shrink_going_north() {
+        // 0.01° of longitude: ~564 m at 59.5° N, ~435 m at 67° N
+        let x = 0.01 * mx();
+        assert!((metres(0.0, 59.5 * MY, x, 59.5 * MY) - 564.6).abs() < 1.0);
+        assert!((metres(0.0, 67.0 * MY, x, 67.0 * MY) - 435.0).abs() < 1.0);
+    }
+
+    #[test]
     fn real_graph_loads() {
         // Stockholm Central is on the tracks
         let (snap, path) = track_path(None, 59.3303, 18.0575);
         assert!(snap.is_some());
         assert!(path.is_none());
+        // all of Sweden: Malmö C, Göteborg C, Kiruna
+        for (lat, lon) in [(55.6090, 13.0007), (57.7089, 11.9732), (67.83474, 20.1395)] {
+            assert!(track_path(None, lat, lon).0.is_some(), "{lat},{lon}");
+        }
     }
 }

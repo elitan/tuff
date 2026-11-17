@@ -11,11 +11,12 @@
 export type LatLon = [number, number];
 type Key = { t: number; d: number };
 
-const COS_LAT = Math.cos((59.5 * Math.PI) / 180);
+// east–west metres per degree shrink going north: use the cosine at the pair's mid latitude
+const cosLat = (a: LatLon, b: LatLon) => Math.cos(((a[0] + b[0]) * Math.PI) / 360);
 export const metres = (a: LatLon, b: LatLon) =>
-  Math.hypot((b[0] - a[0]) * 110_540, (b[1] - a[1]) * 111_320 * COS_LAT);
+  Math.hypot((b[0] - a[0]) * 110_540, (b[1] - a[1]) * 111_320 * cosLat(a, b));
 export const heading = (a: LatLon, b: LatLon) =>
-  (Math.atan2((b[1] - a[1]) * COS_LAT, b[0] - a[0]) * 180) / Math.PI;
+  (Math.atan2((b[1] - a[1]) * cosLat(a, b), b[0] - a[0]) * 180) / Math.PI;
 
 const DEFAULT_DELAY = 10_000;   // playback delay before we've measured anything
 const MAX_DELAY = 30_000;

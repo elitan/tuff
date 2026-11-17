@@ -27,6 +27,25 @@ pub struct TrainPosition {
     pub received_at: i64,
 }
 
+/// How far off each way of guessing a train's position was, per day: graded on live fixes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, sqlx::FromRow, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct PredictionError {
+    /// UTC day, e.g. "2026-11-17".
+    pub day: String,
+    /// "hold", "last_speed", "reported", "learned", "learned_scaled".
+    pub method: String,
+    /// Seconds since the fix the guess starts from (30 or 60).
+    pub horizon_s: i64,
+    pub n: i64,
+    /// Sum of absolute errors along the track, metres.
+    pub sum_abs: f64,
+    /// Guesses within 100, 250 and 500 m.
+    pub within_100: i64,
+    pub within_250: i64,
+    pub within_500: i64,
+}
+
 /// When each dataset was last loaded from Trafikverket ("stations", "trains").
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, sqlx::FromRow, TS)]
 #[serde(rename_all = "camelCase")]
@@ -49,6 +68,24 @@ pub struct Station {
     pub advertised: bool,
     pub lat: Option<f64>,
     pub lon: Option<f64>,
+}
+
+/// Learned train speeds per ~200 m of track, direction and product, from every live fix.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, sqlx::FromRow, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackSpeed {
+    /// 200 m grid cell (x: east, y: north), see speeds.rs.
+    pub cx: i64,
+    pub cy: i64,
+    /// Direction of travel in 45° sectors: 0 = north, 2 = east, 4 = south, 6 = west.
+    pub sector: i64,
+    /// Train product (e.g. "SL Pendeltåg"), or "" when unknown (freight).
+    pub product: String,
+    /// Number of samples, sum of speeds and of squared speeds (m/s), samples standing still.
+    pub n: i64,
+    pub sum_v: f64,
+    pub sum_v2: f64,
+    pub n_stopped: i64,
 }
 
 /// Advertised passenger trains running now (TrainAnnouncement), refreshed every 5 minutes.

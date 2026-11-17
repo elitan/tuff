@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT number, product FROM trains",
+  "describe": {
+    "columns": [
+      {
+        "name": "number",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "trains",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "name": "product",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "trains",
+            "name": "product"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "4c5330d2da7b6f337b9b62172125bc9df806fec1988d05043c5de8a793115816"
+}
