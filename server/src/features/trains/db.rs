@@ -174,13 +174,14 @@ pub async fn store_fixes(
     let mut tx = northstack::db::begin(db).await?;
     for f in fixes {
         let path = f.fix.path.as_ref().map(|p| serde_json::json!(p));
+        let ahead = f.fix.ahead.as_ref().map(|p| serde_json::json!(p));
         let snap = f.snap.as_ref().map(|s| serde_json::json!(s));
         let done = sqlx::query!(
-            "INSERT INTO positions (train, lat, lon, bearing, speed, ts, path, snap, received_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            "INSERT INTO positions (train, lat, lon, bearing, speed, ts, path, snap, received_at, ahead)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
              ON CONFLICT (train) DO UPDATE SET lat = excluded.lat, lon = excluded.lon,
                bearing = excluded.bearing, speed = excluded.speed, ts = excluded.ts, path = excluded.path,
-               snap = excluded.snap, received_at = excluded.received_at
+               snap = excluded.snap, received_at = excluded.received_at, ahead = excluded.ahead
              WHERE excluded.ts > positions.ts",
             f.fix.n,
             f.fix.lat,
@@ -190,7 +191,8 @@ pub async fn store_fixes(
             f.fix.ts,
             path,
             snap,
-            received_at
+            received_at,
+            ahead
         )
         .execute(&mut *tx)
         .await?;
@@ -207,7 +209,7 @@ pub async fn fixes(
     received_after: i64,
 ) -> sqlx::Result<(Vec<Fix>, i64)> {
     let rows = sqlx::query!(
-        r#"SELECT p.train, p.lat, p.lon, p.bearing, p.speed, p.ts, p.path, p.received_at
+        r#"SELECT p.train, p.lat, p.lon, p.bearing, p.speed, p.ts, p.path, p.ahead, p.received_at
            FROM positions p JOIN trains t ON t.number = p.train
            WHERE p.ts > $1 AND p.received_at > $2
            ORDER BY p.ts"#,
@@ -231,6 +233,7 @@ pub async fn fixes(
             speed: r.speed,
             ts: r.ts,
             path: r.path.and_then(|p| serde_json::from_value(p).ok()),
+            ahead: r.ahead.and_then(|p| serde_json::from_value(p).ok()),
         })
         .collect();
     Ok((fixes, cursor))

@@ -25,6 +25,7 @@ pub struct TrainPosition {
     pub snap: Option<serde_json::Value>,
     /// When we received it, ms since epoch: the polling cursor.
     pub received_at: i64,
+    pub ahead: Option<serde_json::Value>,
 }
 
 /// How far off each way of guessing a train's position was, per day: graded on live fixes.

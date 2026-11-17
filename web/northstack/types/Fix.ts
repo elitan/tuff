@@ -19,4 +19,9 @@ ts: number,
 /**
  * Route along the rails from the previous fix, [lat, lon] points.
  */
-path: Array<[number, number]> | null, };
+path: Array<[number, number]> | null, 
+/**
+ * The track ahead (~2 km, straight on at junctions), from this fix: [lat, lon] points.
+ * None when the train isn't moving.
+ */
+ahead: Array<[number, number]> | null, };

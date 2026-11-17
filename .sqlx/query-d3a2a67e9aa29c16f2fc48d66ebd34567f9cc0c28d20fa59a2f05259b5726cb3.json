@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT p.train, p.lat, p.lon, p.bearing, p.speed, p.ts, p.path, p.received_at\n           FROM positions p JOIN trains t ON t.number = p.train\n           WHERE p.ts > $1 AND p.received_at > $2\n           ORDER BY p.ts",
+  "query": "SELECT p.train, p.lat, p.lon, p.bearing, p.speed, p.ts, p.path, p.ahead, p.received_at\n           FROM positions p JOIN trains t ON t.number = p.train\n           WHERE p.ts > $1 AND p.received_at > $2\n           ORDER BY p.ts",
   "describe": {
     "columns": [
       {
@@ -81,8 +81,19 @@
         }
       },
       {
-        "name": "received_at",
+        "name": "ahead",
         "ordinal": 7,
+        "type_info": "Null",
+        "origin": {
+          "Table": {
+            "table": "positions",
+            "name": "ahead"
+          }
+        }
+      },
+      {
+        "name": "received_at",
+        "ordinal": 8,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -103,8 +114,9 @@
       true,
       false,
       true,
+      true,
       false
     ]
   },
-  "hash": "06aee1c73cfc8b4d59ed22c2457389f127712f154f9fed9226a3bc1388d5b71b"
+  "hash": "d3a2a67e9aa29c16f2fc48d66ebd34567f9cc0c28d20fa59a2f05259b5726cb3"
 }

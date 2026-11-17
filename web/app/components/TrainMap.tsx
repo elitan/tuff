@@ -87,6 +87,8 @@ export default function TrainMap() {
     L.tileLayer(TILES, { maxZoom: 19 }).addTo(map);
 
     const trains = new Map<string, TrainState>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (import.meta.env.DEV) (window as any).tuff = { trains, map };
     let info: Record<string, TrainInfo> = {};
     let fitted = false, lastEvent = 0, flying = false, raf = 0;
 
@@ -227,7 +229,7 @@ export default function TrainMap() {
     map.on("zoomend", () => { flying = false; });
 
     // ----- positions -----
-    const upsert = (p: Position, live: boolean) => {
+    const upsert = (p: Position) => {
       if (Date.now() - p.ts > MAX_AGE_MS) return;
       const ll: [number, number] = [p.lat, p.lon];
       const t = trains.get(p.n);
@@ -237,7 +239,7 @@ export default function TrainMap() {
         const state: TrainState = {
           marker, el, tm: el.querySelector(".tm")!, svg,
           dirEl: svg.querySelector(".dir")!, nodirEl: svg.querySelector(".nodir")!, known: null, drawn: "",
-          track: new Track(ll, p.ts), angle: p.bearing ?? 0, target: p.bearing, p,
+          track: new Track(ll, p.ts, p.speed, p.ahead), angle: p.bearing ?? 0, target: p.bearing, p,
         };
         trains.set(p.n, state);
         marker.on("click", () => follow(p.n));
@@ -245,7 +247,7 @@ export default function TrainMap() {
         styleTrain(p.n, state);
       } else {
         if (p.ts <= t.p.ts) return;          // replayed / out-of-order event
-        t.track.add(ll, p.ts, p.path ?? undefined, live);
+        t.track.add(ll, p.ts, p.path, p.speed, p.ahead);
         if (!p.path && p.bearing != null) t.target = p.bearing;
         t.p = p;
       }
@@ -320,7 +322,7 @@ export default function TrainMap() {
 
     // Positions: the server follows Trafikverket's live stream and stores every train's
     // latest fix; we poll for what's new since the last answer. The first answer is every
-    // train seen in the last 10 minutes (replayed fixes: they say nothing about delay).
+    // train seen in the last 10 minutes.
     let cursor: number | undefined, pollTimer = 0, stopped = false;
     const poll = async () => {
       try {
@@ -329,7 +331,7 @@ export default function TrainMap() {
         if (stopped) return;   // the map was taken down while we waited
         cursor = res.cursor;
         lastEvent = Date.now();
-        res.fixes.sort((a, b) => a.ts - b.ts).forEach(p => upsert(p, !first));
+        res.fixes.sort((a, b) => a.ts - b.ts).forEach(p => upsert(p));
         if (!fitted && trains.size) {
           map.fitBounds(L.featureGroup([...trains.values()].map(t => t.marker)).getBounds().pad(0.05));
           fitted = true;

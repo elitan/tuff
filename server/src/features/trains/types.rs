@@ -52,6 +52,9 @@ pub struct Fix {
     pub ts: i64,
     /// Route along the rails from the previous fix, [lat, lon] points.
     pub path: Option<Vec<[f64; 2]>>,
+    /// The track ahead (~2 km, straight on at junctions), from this fix: [lat, lon] points.
+    /// None when the train isn't moving.
+    pub ahead: Option<Vec<[f64; 2]>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

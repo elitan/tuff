@@ -4,6 +4,7 @@
 [macros.table-overrides.'positions']
 'path' = "serde_json::Value"
 'snap' = "serde_json::Value"
+'ahead' = "serde_json::Value"
 
 [macros.table-overrides.'refreshes']
 'at' = "chrono::DateTime<chrono::Utc>"

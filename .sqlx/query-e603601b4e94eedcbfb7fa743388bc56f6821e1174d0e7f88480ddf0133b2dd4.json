@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO positions (train, lat, lon, bearing, speed, ts, path, snap, received_at, ahead)\n             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n             ON CONFLICT (train) DO UPDATE SET lat = excluded.lat, lon = excluded.lon,\n               bearing = excluded.bearing, speed = excluded.speed, ts = excluded.ts, path = excluded.path,\n               snap = excluded.snap, received_at = excluded.received_at, ahead = excluded.ahead\n             WHERE excluded.ts > positions.ts",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "e603601b4e94eedcbfb7fa743388bc56f6821e1174d0e7f88480ddf0133b2dd4"
+}

@@ -143,7 +143,8 @@ pub fn snap_all(mut raw: Vec<RawFix>, mut last: Last) -> (Vec<StoredFix>, Last) 
         let from = prev
             .filter(|(ts, _)| f.ts - ts < FORGET_MS)
             .and_then(|(_, s)| s.as_ref());
-        let (snap, path) = track_path(from, f.lat, f.lon);
+        let placed = track_path(from, f.lat, f.lon, f.bearing);
+        let (snap, path, ahead) = (placed.snap, placed.path, placed.ahead);
         let (lat, lon) = snap
             .map(|s| snap_lat_lon(&s).into())
             .unwrap_or((f.lat, f.lon));
@@ -156,6 +157,7 @@ pub fn snap_all(mut raw: Vec<RawFix>, mut last: Last) -> (Vec<StoredFix>, Last) 
             speed: f.speed,
             ts: f.ts,
             path,
+            ahead,
         };
         match index.get(&fix.n) {
             Some(&i) => {

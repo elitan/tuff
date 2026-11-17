@@ -10,6 +10,9 @@ use std::sync::OnceLock;
 use serde::{Deserialize, Serialize};
 
 const SNAP_RADIUS_M: f64 = 80.0; // GPS further than this from any track isn't snapped
+const AHEAD_M: f64 = 2000.0; // how much track ahead of a moving train to send
+const AHEAD_TOLERANCE_M: f64 = 3.0; // ...simplified: no point further than this off the track
+const MAX_TURN_DEG: f64 = 60.0; // a sharper turn ends the track ahead
 const CELL_M: f64 = 250.0; // spatial grid cell size
 const LAT0: f64 = 59.5; // x is degrees longitude scaled as at this latitude
 const MY: f64 = 110_540.0; // metres per degree latitude
@@ -213,6 +216,101 @@ impl Graph {
     }
 }
 
+impl Graph {
+    /// The track ahead of a train at `cur` heading `heading` (degrees, 0 = north): up to
+    /// `limit` metres, taking the straightest way at every junction.
+    fn ahead(&self, cur: &Snap, heading: f64, limit: f64) -> Vec<(f64, f64)> {
+        let k = kx(cur.y);
+        // directions in real metres (east, north)
+        let dir = |x0: f64, y0: f64, x1: f64, y1: f64| ((x1 - x0) * k, y1 - y0);
+        let mut d_in = (heading.to_radians().sin(), heading.to_radians().cos());
+        let mut pts = vec![(cur.x, cur.y)];
+        let node = |u: u32| (self.xs[u as usize], self.ys[u as usize]);
+        // first node: the end of the current segment we're heading towards
+        let (mut u, mut prev) = {
+            let (a, b) = (node(cur.a), node(cur.b));
+            let da = dir(cur.x, cur.y, a.0, a.1);
+            let db = dir(cur.x, cur.y, b.0, b.1);
+            let dot = |d: (f64, f64)| d.0 * d_in.0 + d.1 * d_in.1;
+            if cur.t > 0.0 && cur.t < 1.0 {
+                if dot(db) >= dot(da) {
+                    (cur.b, Some(cur.a))
+                } else {
+                    (cur.a, Some(cur.b))
+                }
+            } else if cur.t >= 1.0 {
+                (cur.b, None) // on a node: every way out is a candidate
+            } else {
+                (cur.a, None)
+            }
+        };
+        let mut total = metres(cur.x, cur.y, node(u).0, node(u).1);
+        if total > 0.5 {
+            d_in = dir(cur.x, cur.y, node(u).0, node(u).1);
+            pts.push(node(u));
+        }
+        let cos_max = MAX_TURN_DEG.to_radians().cos();
+        while total < limit {
+            let (ux, uy) = node(u);
+            let len_in = d_in.0.hypot(d_in.1);
+            let next = self.adj[u as usize]
+                .iter()
+                .filter(|&&v| Some(v) != prev)
+                .map(|&v| {
+                    let d = dir(ux, uy, node(v).0, node(v).1);
+                    let cos = (d.0 * d_in.0 + d.1 * d_in.1) / (d.0.hypot(d.1) * len_in).max(1e-9);
+                    (v, d, cos)
+                })
+                .max_by(|p, q| p.2.total_cmp(&q.2));
+            let Some((v, d, _)) = next.filter(|n| n.2 >= cos_max) else {
+                break;
+            };
+            total += d.0.hypot(d.1);
+            pts.push(node(v));
+            (prev, u, d_in) = (Some(u), v, d);
+        }
+        if pts.len() < 2 {
+            vec![]
+        } else {
+            simplify(&pts, AHEAD_TOLERANCE_M / k.min(1.0))
+        }
+    }
+}
+
+/// Ramer–Douglas–Peucker: fewer points, none of the dropped ones further than `tol` off the
+/// line (in projected units).
+fn simplify(pts: &[(f64, f64)], tol: f64) -> Vec<(f64, f64)> {
+    fn off(p: (f64, f64), a: (f64, f64), b: (f64, f64)) -> f64 {
+        let (vx, vy) = (b.0 - a.0, b.1 - a.1);
+        let len = vx.hypot(vy);
+        if len == 0.0 {
+            return (p.0 - a.0).hypot(p.1 - a.1);
+        }
+        ((p.0 - a.0) * vy - (p.1 - a.1) * vx).abs() / len
+    }
+    let mut keep = vec![false; pts.len()];
+    keep[0] = true;
+    keep[pts.len() - 1] = true;
+    let mut stack = vec![(0, pts.len() - 1)];
+    while let Some((i, j)) = stack.pop() {
+        let far = (i + 1..j)
+            .map(|m| (m, off(pts[m], pts[i], pts[j])))
+            .max_by(|a, b| a.1.total_cmp(&b.1));
+        if let Some((m, d)) = far
+            && d > tol
+        {
+            keep[m] = true;
+            stack.push((i, m));
+            stack.push((m, j));
+        }
+    }
+    pts.iter()
+        .zip(keep)
+        .filter(|(_, k)| *k)
+        .map(|(p, _)| *p)
+        .collect()
+}
+
 fn to_lat_lon(x: f64, y: f64) -> LatLon {
     let r6 = |v: f64| (v * 1e6).round() / 1e6;
     [r6(y / MY), r6(x / mx())]
@@ -222,11 +320,48 @@ pub fn snap_lat_lon(s: &Snap) -> LatLon {
     to_lat_lon(s.x, s.y)
 }
 
-/// Snap a new GPS fix onto the tracks and, given the previous snapped fix, return the path
-/// along the rails between them.
-/// - snap: where to draw the train (None if not near a track)
-/// - path: [lat, lon] points from the previous to the new snapped point (None → move straight)
-pub fn track_path(prev: Option<&Snap>, lat: f64, lon: f64) -> (Option<Snap>, Option<Vec<LatLon>>) {
+/// A fix placed on the tracks.
+#[derive(Debug, Default)]
+pub struct Placed {
+    /// Where to draw the train (None if not near a track).
+    pub snap: Option<Snap>,
+    /// [lat, lon] points along the rails from the previous snapped point (None: move straight).
+    pub path: Option<Vec<LatLon>>,
+    /// [lat, lon] points along the track ahead, from the snapped point (None: not moving,
+    /// or no track ahead).
+    pub ahead: Option<Vec<LatLon>>,
+}
+
+/// Snap a new GPS fix onto the tracks and, given the previous snapped fix, find the path
+/// along the rails between them and the track ahead. `bearing` is the train's reported
+/// heading (degrees, 0 = north).
+pub fn track_path(prev: Option<&Snap>, lat: f64, lon: f64, bearing: Option<f64>) -> Placed {
+    let (snap, path) = snap_and_route(prev, lat, lon);
+    let g = graph();
+    // Direction of travel: the train's own bearing, else the route, if it moved far enough
+    // that GPS jitter can't flip it (a few metres back and forth at a platform).
+    let moved = |s: &Snap| {
+        path.as_ref()?
+            .iter()
+            .rev()
+            .find(|p| metres(p.0, p.1, s.x, s.y) >= 10.0)
+            .map(|p| ((s.x - p.0) * kx(s.y)).atan2(s.y - p.1).to_degrees())
+    };
+    let ahead = snap
+        .as_ref()
+        .and_then(|s| Some((s, bearing.or_else(|| moved(s))?)))
+        .map(|(s, heading)| g.ahead(s, heading, AHEAD_M))
+        .filter(|a| !a.is_empty())
+        .map(|a| a.into_iter().map(|(x, y)| to_lat_lon(x, y)).collect());
+    let path = path.map(|pts| pts.into_iter().map(|(x, y)| to_lat_lon(x, y)).collect());
+    Placed { snap, path, ahead }
+}
+
+fn snap_and_route(
+    prev: Option<&Snap>,
+    lat: f64,
+    lon: f64,
+) -> (Option<Snap>, Option<Vec<(f64, f64)>>) {
     let g = graph();
     let mut cands = g.candidates(lat, lon);
     cands.truncate(8);
@@ -251,8 +386,7 @@ pub fn track_path(prev: Option<&Snap>, lat: f64, lon: f64) -> (Option<Snap>, Opt
             best_path = Some(pts);
         }
     }
-    let path = best_path.map(|pts| pts.into_iter().map(|(x, y)| to_lat_lon(x, y)).collect());
-    (Some(best_snap), path)
+    (Some(best_snap), best_path)
 }
 
 #[cfg(test)]
@@ -298,6 +432,26 @@ mod tests {
     }
 
     #[test]
+    fn track_ahead_goes_straight_on() {
+        let g = sample();
+        let cur = g.candidates(59.5, 18.0 + 500.0 / mx())[0].0;
+        // eastbound at 500 m: straight through node 1 (not up the branch) to the end, 1500 m on
+        let pts = g.ahead(&cur, 80.0, 5000.0);
+        let last = pts.last().unwrap();
+        assert!((last.0 - g.xs[2]).abs() < 1e-6 && (last.1 - g.ys[2]).abs() < 1e-6);
+        // westbound: ends at node 0
+        let pts = g.ahead(&cur, 260.0, 5000.0);
+        assert!((pts.last().unwrap().0 - g.xs[0]).abs() < 1e-6);
+        // limited, and a straight line is two points
+        let pts = g.ahead(&cur, 90.0, 300.0);
+        assert!(pts.len() == 2, "{pts:?}");
+        // heading north from node 1 takes the branch
+        let at1 = g.candidates(59.5, 18.0 + 1000.0 / mx())[0].0;
+        let pts = g.ahead(&at1, 10.0, 5000.0);
+        assert!((pts.last().unwrap().1 - g.ys[3]).abs() < 1e-6, "{pts:?}");
+    }
+
+    #[test]
     fn distances_shrink_going_north() {
         // 0.01° of longitude: ~564 m at 59.5° N, ~435 m at 67° N
         let x = 0.01 * mx();
@@ -308,12 +462,21 @@ mod tests {
     #[test]
     fn real_graph_loads() {
         // Stockholm Central is on the tracks
-        let (snap, path) = track_path(None, 59.3303, 18.0575);
-        assert!(snap.is_some());
-        assert!(path.is_none());
+        let placed = track_path(None, 59.3303, 18.0575, None);
+        assert!(placed.snap.is_some());
+        assert!(placed.path.is_none() && placed.ahead.is_none());
+        // with a bearing there's track ahead, even from the first fix
+        assert!(
+            track_path(None, 59.3303, 18.0575, Some(0.0))
+                .ahead
+                .is_some()
+        );
         // all of Sweden: Malmö C, Göteborg C, Kiruna
         for (lat, lon) in [(55.6090, 13.0007), (57.7089, 11.9732), (67.83474, 20.1395)] {
-            assert!(track_path(None, lat, lon).0.is_some(), "{lat},{lon}");
+            assert!(
+                track_path(None, lat, lon, None).snap.is_some(),
+                "{lat},{lon}"
+            );
         }
     }
 }
