@@ -246,6 +246,7 @@ button { font: inherit; color: inherit; }
 
 /* ───────── the followed train's route ───────── */
 .rlabel { pointer-events: none; }
+.leaflet-marker-icon.dim { opacity: .3; }
 .rlabel span {
   position: absolute; left: 11px; top: -10px; white-space: nowrap;
   font: 500 11.5px/20px "Geist Variable", sans-serif; letter-spacing: -0.01em; color: var(--ink);
@@ -258,6 +259,15 @@ button { font: inherit; color: inherit; }
 .rlabel .passed b { font-weight: 500; }
 .rlabel .next { font-size: 13px; }
 .rlabel .next em { color: var(--ink); }
+.rlabel .end b { font-weight: 700; }
+.hud-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.hud-actions:empty { display: none; }
+.hud-actions button {
+  font: 600 12px/1 "Geist Variable", sans-serif; color: var(--ink); background: var(--glass-strong);
+  border: 1px solid var(--hair); border-radius: 999px; padding: 6px 10px; cursor: pointer;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hud-actions button:hover { border-color: var(--ink-3); }
 .hud .from b { color: var(--ink-2); font-weight: 600; }
 .hud .from .late { color: var(--late, #e5484d); font-weight: 600; }
 

@@ -81,16 +81,19 @@ const css = (name: string) => getComputedStyle(document.documentElement).getProp
 
 export default function TrainMap() {
   const mapEl = useRef<HTMLDivElement>(null);
-  const followedRef = useRef<string | null>(null);
+  const followedRef = useRef<string | null>(null);   // the selected train
+  const centerRef = useRef(false);                     // keep the selected train in the middle
   const brandRef = useRef<string | null>(null);   // brand key filter
   const ctl = useRef({   // map actions, for the React UI below
     follow: (_n: string) => {}, unfollow: () => {}, zoom: (_d: number) => {}, fitAll: () => {},
+    fitRoute: () => {},
     openStation: (_sig: string) => {}, closeStation: () => {}, applyFilter: () => {},
   });
   const [live, setLive] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [followed, setFollowed] = useState<string | null>(null);
+  const [centered, setCentered] = useState(false);
   const [route, setRoute] = useState<TrainRoute | null>(null);
   const [board, setBoard] = useState<string | null>(null);
   const [brandKey, setBrandKey] = useState<string | null>(null);
@@ -147,6 +150,8 @@ export default function TrainMap() {
       const want = brandRef.current;
       const display = !want || b.key === want || n === followedRef.current ? "" : "none";
       if (t.el.style.display !== display) t.el.style.display = display;
+      // with a train selected, the others step back so its route reads
+      t.el.classList.toggle("dim", followedRef.current != null && n !== followedRef.current);
     };
     const applyFilter = () => { for (const [n, t] of trains) styleTrain(n, t); };
 
@@ -158,6 +163,7 @@ export default function TrainMap() {
       renderer, radius: 10, weight: 2.5, fill: false, interactive: false,
     });
     let stationList: Station[] = [];
+    let routeStops: RouteStop[] = [];
     const dotStyle = () => ({
       color: css("--ink"), fillColor: css("--bg"), fillOpacity: 1, weight: 1.6,
       radius: map.getZoom() >= STATION_LABEL_ZOOM ? 5 : map.getZoom() >= 10 ? 4 : 3,
@@ -189,7 +195,8 @@ export default function TrainMap() {
       labelLayer.clearLayers();
       if (map.getZoom() < STATION_LABEL_ZOOM) return;
       const b = map.getBounds();
-      for (const s of stationList.filter(s => b.contains([s.lat, s.lon])).slice(0, 150)) {
+      const named = new Set(routeStops.filter(s => s.advertised).map(s => s.sig));
+      for (const s of stationList.filter(s => b.contains([s.lat, s.lon]) && !named.has(s.sig)).slice(0, 150)) {
         L.marker([s.lat, s.lon], {
           interactive: false, keyboard: false,
           icon: L.divIcon({ className: "slabel", html: `<span>${s.name}</span>`, iconSize: [0, 0] }),
@@ -212,15 +219,19 @@ export default function TrainMap() {
 
     // ----- the followed train's route: the railway it runs on, with its stops -----
     map.createPane("route").style.zIndex = "450";        // above tiles, below trains
-    map.createPane("routeLabels").style.zIndex = "590";
+    map.createPane("routeLabels").style.zIndex = "650";   // names above the trains
     const routeRenderer = L.svg({ pane: "route" });
     const routeLayer = L.layerGroup().addTo(map);
     let routeFor: string | null = null, routeTimer = 0;
-    // The part still to run is split at the train every second: behind it dashed, ahead bright.
+    // The whole run is drawn: what's run already faint in the train's colour, what's left bright.
+    // The part still to run is split at the train every second.
     let remaining: L.LatLngTuple[] = [];
-    const behindLine = L.polyline([], { pane: "route", renderer: routeRenderer, weight: 3, opacity: 0.8, dashArray: "2 6", interactive: false });
-    const aheadCasing = L.polyline([], { pane: "route", renderer: routeRenderer, weight: 8, opacity: 0.9, interactive: false });
-    const aheadLine = L.polyline([], { pane: "route", renderer: routeRenderer, weight: 4.5, opacity: 1, interactive: false });
+    let labels: { el: HTMLElement; prio: number }[] = [];
+    const line = (o: L.PolylineOptions) => L.polyline([], { pane: "route", renderer: routeRenderer, interactive: false, lineCap: "round", lineJoin: "round", ...o });
+    const doneLine = line({ weight: 4, opacity: 0.55 });
+    const behindLine = line({ weight: 4, opacity: 0.55 });
+    const aheadCasing = line({ weight: 8, opacity: 0.9 });
+    const aheadLine = line({ weight: 4.5, opacity: 1 });
     const splitRoute = () => {
       const t = routeFor ? trains.get(routeFor) : undefined;
       if (!t || remaining.length < 2) return;
@@ -238,41 +249,66 @@ export default function TrainMap() {
       aheadCasing.setLatLngs(ahead);
       aheadLine.setLatLngs(ahead);
     };
+    // Every stop is named at every zoom, as long as names don't overlap: the first and last
+    // stop and the next one always win, then the stops still ahead, then the ones passed.
+    const declutter = () => {
+      const taken: DOMRect[] = [];
+      for (const l of labels) l.el.style.visibility = "";
+      for (const l of [...labels].sort((a, b) => a.prio - b.prio)) {
+        const r = (l.el.firstElementChild as HTMLElement | null)?.getBoundingClientRect();
+        if (!r) continue;
+        const hit = l.prio > 1 && taken.some(t => r.left < t.right + 4 && r.right + 4 > t.left && r.top < t.bottom && r.bottom > t.top);
+        if (hit) l.el.style.visibility = "hidden"; else taken.push(r);
+      }
+    };
+    map.on("zoomend", () => requestAnimationFrame(declutter));
     const drawRoute = (r: TrainRoute) => {
       routeLayer.clearLayers();
-      const color = brandFor(r.number).color, ink = css("--ink"), dim = css("--ink-3");
+      labels = [];
+      routeStops = r.stops;
+      updateStationLabels();
+      const color = brandFor(r.number).color, ink = css("--ink");
       const next = r.stops.findIndex(s => !s.passed);
+      const done: L.LatLngTuple[][] = [];
       remaining = [];
       r.legs.forEach((leg, i) => {
         // a leg is done once the train has passed its far end
-        if (r.stops[i + 1]?.passed) {
-          L.polyline(leg, { pane: "route", renderer: routeRenderer, color: dim, weight: 3, opacity: 0.8, dashArray: "2 6", interactive: false }).addTo(routeLayer);
-        } else {
-          remaining.push(...(remaining.length ? leg.slice(1) : leg) as L.LatLngTuple[]);
-        }
+        if (r.stops[i + 1]?.passed) done.push(leg as L.LatLngTuple[]);
+        else remaining.push(...(remaining.length ? leg.slice(1) : leg) as L.LatLngTuple[]);
       });
-      behindLine.setStyle({ color: dim }).addTo(routeLayer);
+      doneLine.setLatLngs(done).setStyle({ color }).addTo(routeLayer);
+      behindLine.setStyle({ color }).addTo(routeLayer);
       aheadCasing.setStyle({ color: ink }).addTo(routeLayer);
       aheadLine.setStyle({ color }).addTo(routeLayer);
       splitRoute();
+      const last = r.stops.length - 1;
       r.stops.forEach((s, i) => {
-        if (!s.advertised) return;
+        const end = i === 0 || i === last;
+        if (!s.advertised && !end) return;
         const isNext = i === next;
         L.circleMarker([s.lat, s.lon], {
           pane: "route", renderer: routeRenderer, interactive: false,
-          radius: isNext ? 7 : 5, weight: 2.2,
-          color: s.passed ? dim : ink, fillColor: isNext ? color : css("--bg"), fillOpacity: 1,
+          radius: end ? 6.5 : isNext ? 7 : 4.5, weight: 2.2,
+          color: ink, opacity: s.passed && !end ? 0.5 : 1,
+          fillColor: isNext ? color : end ? ink : css("--bg"), fillOpacity: 1,
         }).addTo(routeLayer);
         const late = lateMin(s);
-        const html = `<span class="${s.passed ? "passed" : ""}${isNext ? " next" : ""}">`
+        const html = `<span class="${s.passed ? "passed" : ""}${isNext ? " next" : ""}${end ? " end" : ""}">`
           + `<b>${escapeHtml(s.name)}</b> <em>${stopTime(s)}</em>`
           + (late > 0 && !s.canceled ? ` <i>+${late}</i>` : "")
           + (s.canceled ? ` <i>inställt</i>` : "") + `</span>`;
-        L.marker([s.lat, s.lon], {
+        const mk = L.marker([s.lat, s.lon], {
           pane: "routeLabels", interactive: false, keyboard: false,
           icon: L.divIcon({ className: "rlabel", html, iconSize: [0, 0] }),
         }).addTo(routeLayer);
+        const prio = end || isNext ? 0 : s.passed ? 3 : 2;
+        labels.push({ el: mk.getElement()!, prio: prio * 1000 + (s.passed ? last - i : i) });
       });
+      requestAnimationFrame(declutter);
+    };
+    const routeBounds = () => {
+      const pts = routeStops.map(s => [s.lat, s.lon] as L.LatLngTuple);
+      return pts.length ? L.latLngBounds(pts) : null;
     };
     const loadRoute = (n: string) => {
       api.trains.route.call({ number: n }).then(r => {
@@ -293,14 +329,25 @@ export default function TrainMap() {
       window.clearInterval(routeTimer);
       routeLayer.clearLayers();
       remaining = [];
+      labels = [];
+      routeStops = [];
+      updateStationLabels();
       setRoute(null);
     };
     const splitTimer = setInterval(splitRoute, 1000);
 
     // ----- follow mode -----
+    // Selecting a train keeps it selected (route, card) until it's closed; moving the map only
+    // stops keeping it in the middle. Selecting it again centres it again.
+    const setCenter = (on: boolean) => { centerRef.current = on; setCentered(on); };
     const follow = (n: string) => {
       const t = trains.get(n);
       if (!t) return;
+      setCenter(true);
+      if (followedRef.current === n) {
+        map.flyTo(t.marker.getLatLng(), Math.max(map.getZoom(), FOLLOW_ZOOM), { duration: 1.2 });
+        return;
+      }
       cls(trains.get(followedRef.current ?? ""), "followed", false);
       followedRef.current = n;
       setFollowed(n);
@@ -316,6 +363,7 @@ export default function TrainMap() {
       t?.marker.setZIndexOffset(0);
       followedRef.current = null;
       setFollowed(null);
+      setCenter(false);
       applyFilter();
       clearRoute();
     };
@@ -326,11 +374,17 @@ export default function TrainMap() {
         .map(([, t]) => t.marker);
       if (shown.length) map.flyToBounds(L.featureGroup(shown).getBounds().pad(0.12), { duration: 1 });
     };
+    const fitRoute = () => {
+      const b = routeBounds();
+      if (!b) return;
+      setCenter(false);
+      map.flyToBounds(b, { duration: 1, paddingTopLeft: [40, 90], paddingBottomRight: [40, 170] });
+    };
     ctl.current = {
-      follow, unfollow, fitAll, openStation, closeStation, applyFilter,
+      follow, unfollow, fitAll, fitRoute, openStation, closeStation, applyFilter,
       zoom: d => (d > 0 ? map.zoomIn() : map.zoomOut()),
     };
-    map.on("dragstart", unfollow);           // user takes over the map → stop following
+    map.on("dragstart", () => setCenter(false));   // user takes over the map → stop centring
     map.on("zoomstart", () => { flying = true; });
     map.on("zoomend", () => { flying = false; });
 
@@ -393,7 +447,7 @@ export default function TrainMap() {
       }
       // keep the followed train exactly centred by panning the map by fractional pixels
       const ft = followedN && trains.get(followedN);
-      if (ft && !flying && !zooming) {
+      if (ft && centerRef.current && !flying && !zooming) {
         const off = exactLayerPoint(ft.marker.getLatLng())
           .add(m._getMapPanePos())
           .subtract(map.getSize().divideBy(2));
@@ -607,6 +661,14 @@ export default function TrainMap() {
             ) : (
               <div className="from">från {hud.from} · uppdaterad {ageText(hud.age)} sedan</div>
             )}
+            <div className="hud-actions">
+              {route?.number === followed && (
+                <button onClick={() => ctl.current.fitRoute()}>
+                  Hela rutten · {route.stops[0].name} – {route.stops[route.stops.length - 1].name}
+                </button>
+              )}
+              {!centered && <button onClick={() => ctl.current.follow(hud.n)}>Följ tåget</button>}
+            </div>
           </div>
           <div className="speed mono">
             <b>{hud.speed ?? "–"}</b>
