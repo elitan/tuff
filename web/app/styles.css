@@ -522,3 +522,25 @@ button { font: inherit; color: inherit; }
 @media (prefers-color-scheme: dark) {
   [data-route-brand="sj"] { --route: #cfd6de !important; }   /* SJ's dark grey vanishes on the dark map */
 }
+
+/* 11 Blå: Minimal's thin line in blue, Tidtabell's time cards, the run so far dashed, other trains still there */
+[data-look="11"] { --rb: #2f5bff; --rb-ink: #fff; }
+@media (prefers-color-scheme: dark) { [data-look="11"] { --rb: #5b8cff; --rb-ink: #06102e; } }
+[data-look="11"].sel .leaflet-marker-icon.dim { opacity: .45; }
+[data-look="11"].sel .leaflet-overlay-pane, [data-look="11"].sel .slabel { opacity: .3; }
+[data-look="11"] .r-casing { stroke: var(--bg); stroke-width: 7px; stroke-opacity: .9; }
+[data-look="11"] .r-ahead { stroke: var(--rb); stroke-width: 3.5px; }
+[data-look="11"] .r-done, [data-look="11"] .r-behind { stroke: var(--rb); stroke-width: 2.5px; stroke-opacity: .6; stroke-dasharray: 5 5; }
+[data-look="11"] .r-stop { stroke: var(--rb); stroke-width: 2.2px; fill: var(--bg); }
+[data-look="11"] .r-passed { stroke-opacity: .55; }
+[data-look="11"] .r-next, [data-look="11"] .r-end { fill: var(--rb); stroke: var(--bg); }
+[data-look="11"] .rlabel span { display: flex; flex-direction: row-reverse; gap: 6px; align-items: baseline;
+  background: var(--glass-strong); border: 1px solid var(--hair); border-radius: 7px; padding: 1px 7px;
+  text-shadow: none; box-shadow: var(--shadow); top: -12px; left: 12px; font-size: 11.5px; line-height: 18px; }
+[data-look="11"] .rlabel em { font-size: 11.5px; color: var(--ink); font-weight: 600; }
+[data-look="11"] .rlabel .passed { opacity: .6; }
+[data-look="11"] .rlabel .next { background: var(--rb); border-color: var(--rb); color: var(--rb-ink); font-size: 12.5px; }
+[data-look="11"] .rlabel .next em { color: var(--rb-ink); }
+[data-look="11"] .rlabel .next i { color: var(--rb-ink); }
+[data-look="11"] .tm.followed .body { stroke: var(--rb); }
+[data-look="11"] .tm.followed .halo { background: color-mix(in srgb, var(--rb) 25%, transparent); }

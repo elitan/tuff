@@ -78,7 +78,8 @@ const escapeHtml = (x: string) => x.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<"
 
 const ageText = (s: number) => (s < 60 ? `${s} s` : `${Math.floor(s / 60)} min`);
 // Ways to show a selected train and its route, to compare in the browser (styles.css, [data-look]).
-const LOOKS = ["Nu", "Fokus", "Spotlight", "Tunnelbana", "Neon", "Minimal", "Tidtabell", "Kontrast", "Puls", "Gråskala"];
+const LOOKS = ["Nu", "Fokus", "Spotlight", "Tunnelbana", "Neon", "Minimal", "Tidtabell", "Kontrast", "Puls", "Gråskala", "Blå"];
+const DEFAULT_LOOK = 11;
 
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -98,18 +99,18 @@ export default function TrainMap() {
   const [followed, setFollowed] = useState<string | null>(null);
   const [centered, setCentered] = useState(false);
   const [look, setLook] = useState(() => {
-    try { return Number(localStorage.getItem("look")) || 1; } catch { return 1; }
+    try { return Number(localStorage.getItem("look2")) || DEFAULT_LOOK; } catch { return DEFAULT_LOOK; }
   });
   const pickLook = (n: number) => {
     setLook(n);
-    try { localStorage.setItem("look", String(n)); } catch { /* private window */ }
+    try { localStorage.setItem("look2", String(n)); } catch { /* private window */ }
     setTimeout(() => ctl.current.relayout(), 50);   // label sizes change with the look
   };
   // keys 1–9 and 0 switch looks while a train is selected
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!followedRef.current || (e.target as HTMLElement)?.tagName === "INPUT") return;
-      const i = "1234567890".indexOf(e.key);
+      const i = "1234567890b".indexOf(e.key);
       if (i >= 0) pickLook(i + 1);
     };
     window.addEventListener("keydown", onKey);
@@ -683,8 +684,8 @@ export default function TrainMap() {
         <div className="looks glass" role="radiogroup" aria-label="Utseende">
           {LOOKS.map((name, i) => (
             <button key={name} role="radio" aria-checked={look === i + 1}
-              className={look === i + 1 ? "on" : ""} onClick={() => pickLook(i + 1)} title={`${name} (${(i + 1) % 10})`}>
-              <i className="mono">{(i + 1) % 10}</i>{name}
+              className={look === i + 1 ? "on" : ""} onClick={() => pickLook(i + 1)} title={`${name} (${"1234567890b"[i]})`}>
+              <i className="mono">{"1234567890B"[i]}</i>{name}
             </button>
           ))}
         </div>
