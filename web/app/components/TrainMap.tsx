@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import { api, type Fix, type MapStation, type TrainInfo } from "northstack";
+import { api, type Fix, type MapStation, type RouteStop, type TrainInfo, type TrainRoute } from "northstack";
 import { Track } from "../lib/motion";
 import StationBoard from "./StationBoard";
 import BrandBadge from "./BrandBadge";
@@ -60,6 +60,22 @@ const icon = (n: string) => L.divIcon({
     <circle class="body nodir" cx="22" cy="22" r="6.5"/></svg></div>`,
 });
 
+const ROUTE_REFRESH_MS = 60_000;  // refresh the followed train's timetable (delays)
+const hhmm = (iso?: string | null) => (iso ? iso.slice(11, 16) : "");
+/** Minutes late at a stop (estimated or actual vs timetable), if any. */
+const lateMin = (s: RouteStop) => {
+  const t = s.departure ?? s.arrival;
+  const real = t?.actual ?? t?.estimated;
+  if (!t || !real) return 0;
+  return Math.round((Date.parse(real) - Date.parse(t.time)) / 60_000);
+};
+/** The stop's time as shown: when it really happened or is expected, else the timetable. */
+const stopTime = (s: RouteStop) => {
+  const t = s.departure ?? s.arrival;
+  return hhmm(t?.actual ?? t?.estimated ?? t?.time);
+};
+const escapeHtml = (x: string) => x.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
 const ageText = (s: number) => (s < 60 ? `${s} s` : `${Math.floor(s / 60)} min`);
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -75,6 +91,7 @@ export default function TrainMap() {
   const [rows, setRows] = useState<Row[]>([]);
   const [stations, setStations] = useState<Station[]>([]);
   const [followed, setFollowed] = useState<string | null>(null);
+  const [route, setRoute] = useState<TrainRoute | null>(null);
   const [board, setBoard] = useState<string | null>(null);
   const [brandKey, setBrandKey] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState(false);
@@ -193,6 +210,93 @@ export default function TrainMap() {
     map.on("moveend", () => { if (map.getZoom() >= STATION_LABEL_ZOOM) updateStationLabels(); });
     updateZoomUI();
 
+    // ----- the followed train's route: the railway it runs on, with its stops -----
+    map.createPane("route").style.zIndex = "450";        // above tiles, below trains
+    map.createPane("routeLabels").style.zIndex = "590";
+    const routeRenderer = L.svg({ pane: "route" });
+    const routeLayer = L.layerGroup().addTo(map);
+    let routeFor: string | null = null, routeTimer = 0;
+    // The part still to run is split at the train every second: behind it dashed, ahead bright.
+    let remaining: L.LatLngTuple[] = [];
+    const behindLine = L.polyline([], { pane: "route", renderer: routeRenderer, weight: 3, opacity: 0.8, dashArray: "2 6", interactive: false });
+    const aheadCasing = L.polyline([], { pane: "route", renderer: routeRenderer, weight: 8, opacity: 0.9, interactive: false });
+    const aheadLine = L.polyline([], { pane: "route", renderer: routeRenderer, weight: 4.5, opacity: 1, interactive: false });
+    const splitRoute = () => {
+      const t = routeFor ? trains.get(routeFor) : undefined;
+      if (!t || remaining.length < 2) return;
+      const p = t.marker.getLatLng(), k = Math.cos((p.lat * Math.PI) / 180);
+      let best = Infinity, at = 0, cut: L.LatLngTuple = remaining[0];
+      for (let i = 1; i < remaining.length; i++) {
+        const [ay, ax] = remaining[i - 1], [by, bx] = remaining[i];
+        const vx = (bx - ax) * k, vy = by - ay, px = (p.lng - ax) * k, py = p.lat - ay;
+        const l2 = vx * vx + vy * vy, f = l2 > 0 ? Math.max(0, Math.min(1, (px * vx + py * vy) / l2)) : 0;
+        const d = (px - f * vx) ** 2 + (py - f * vy) ** 2;
+        if (d < best) { best = d; at = i; cut = [ay + f * (by - ay), ax + f * (bx - ax)]; }
+      }
+      behindLine.setLatLngs([...remaining.slice(0, at), cut]);
+      const ahead = [cut, ...remaining.slice(at)];
+      aheadCasing.setLatLngs(ahead);
+      aheadLine.setLatLngs(ahead);
+    };
+    const drawRoute = (r: TrainRoute) => {
+      routeLayer.clearLayers();
+      const color = brandFor(r.number).color, ink = css("--ink"), dim = css("--ink-3");
+      const next = r.stops.findIndex(s => !s.passed);
+      remaining = [];
+      r.legs.forEach((leg, i) => {
+        // a leg is done once the train has passed its far end
+        if (r.stops[i + 1]?.passed) {
+          L.polyline(leg, { pane: "route", renderer: routeRenderer, color: dim, weight: 3, opacity: 0.8, dashArray: "2 6", interactive: false }).addTo(routeLayer);
+        } else {
+          remaining.push(...(remaining.length ? leg.slice(1) : leg) as L.LatLngTuple[]);
+        }
+      });
+      behindLine.setStyle({ color: dim }).addTo(routeLayer);
+      aheadCasing.setStyle({ color: ink }).addTo(routeLayer);
+      aheadLine.setStyle({ color }).addTo(routeLayer);
+      splitRoute();
+      r.stops.forEach((s, i) => {
+        if (!s.advertised) return;
+        const isNext = i === next;
+        L.circleMarker([s.lat, s.lon], {
+          pane: "route", renderer: routeRenderer, interactive: false,
+          radius: isNext ? 7 : 5, weight: 2.2,
+          color: s.passed ? dim : ink, fillColor: isNext ? color : css("--bg"), fillOpacity: 1,
+        }).addTo(routeLayer);
+        const late = lateMin(s);
+        const html = `<span class="${s.passed ? "passed" : ""}${isNext ? " next" : ""}">`
+          + `<b>${escapeHtml(s.name)}</b> <em>${stopTime(s)}</em>`
+          + (late > 0 && !s.canceled ? ` <i>+${late}</i>` : "")
+          + (s.canceled ? ` <i>inställt</i>` : "") + `</span>`;
+        L.marker([s.lat, s.lon], {
+          pane: "routeLabels", interactive: false, keyboard: false,
+          icon: L.divIcon({ className: "rlabel", html, iconSize: [0, 0] }),
+        }).addTo(routeLayer);
+      });
+    };
+    const loadRoute = (n: string) => {
+      api.trains.route.call({ number: n }).then(r => {
+        if (stopped || routeFor !== n) return;   // followed another train meanwhile
+        drawRoute(r);
+        setRoute(r);
+      }).catch(e => console.warn("route:", e));
+    };
+    const showRoute = (n: string) => {
+      if (routeFor === n) return;
+      clearRoute();
+      routeFor = n;
+      loadRoute(n);
+      routeTimer = window.setInterval(() => loadRoute(n), ROUTE_REFRESH_MS);
+    };
+    const clearRoute = () => {
+      routeFor = null;
+      window.clearInterval(routeTimer);
+      routeLayer.clearLayers();
+      remaining = [];
+      setRoute(null);
+    };
+    const splitTimer = setInterval(splitRoute, 1000);
+
     // ----- follow mode -----
     const follow = (n: string) => {
       const t = trains.get(n);
@@ -203,6 +307,7 @@ export default function TrainMap() {
       cls(t, "followed", true);
       t.marker.setZIndexOffset(1000);
       applyFilter();
+      showRoute(n);
       map.flyTo(t.marker.getLatLng(), Math.max(map.getZoom(), FOLLOW_ZOOM), { duration: 1.2 });
     };
     const unfollow = () => {
@@ -212,6 +317,7 @@ export default function TrainMap() {
       followedRef.current = null;
       setFollowed(null);
       applyFilter();
+      clearRoute();
     };
     const fitAll = () => {
       unfollow();
@@ -351,6 +457,8 @@ export default function TrainMap() {
       clearTimeout(pollTimer);
       clearInterval(tick);
       clearInterval(infoTimer);
+      clearInterval(routeTimer);
+      clearInterval(splitTimer);
       cancelAnimationFrame(raf);
       map.remove();
     };
@@ -385,6 +493,9 @@ export default function TrainMap() {
   );
   const liveTrains = useMemo(() => new Set(rows.map(r => r.n)), [rows]);
   const hud = followed ? rows.find(r => r.n === followed) : undefined;
+  const nextStop = route?.number === followed
+    ? route.stops.find(s => s.advertised && !s.passed && !s.canceled)
+    : undefined;
   const shownCount = brandKey ? rows.filter(r => r.brand.key === brandKey).length : rows.length;
 
   return (
@@ -487,7 +598,15 @@ export default function TrainMap() {
           <div style={{ minWidth: 0 }}>
             <div className="eyebrow"><BrandBadge brand={hud.brand} size="sm" /><span className="badge mono">{hud.n}</span>{hud.product}</div>
             <div className="dest">{hud.to}</div>
-            <div className="from">från {hud.from} · uppdaterad {ageText(hud.age)} sedan</div>
+            {nextStop ? (
+              <div className="from">
+                nästa <b>{nextStop.name}</b> {stopTime(nextStop)}
+                {lateMin(nextStop) > 0 && <span className="late"> +{lateMin(nextStop)} min</span>}
+                {" "}· uppdaterad {ageText(hud.age)} sedan
+              </div>
+            ) : (
+              <div className="from">från {hud.from} · uppdaterad {ageText(hud.age)} sedan</div>
+            )}
           </div>
           <div className="speed mono">
             <b>{hud.speed ?? "–"}</b>

@@ -5,6 +5,7 @@ use northstack::{Ctx, EnqueueOptions, ErrorCode, Job, RpcError, RpcResult};
 
 use super::db;
 use super::jobs::{self, FollowPositions, RefreshStations, RefreshTrains};
+use super::railway::rail_between;
 use super::types::*;
 use crate::AppState;
 
@@ -44,6 +45,71 @@ pub async fn prediction_stats(ctx: Ctx<AppState>, _input: ()) -> RpcResult<Predi
         learned_cells,
         samples,
         rows: db::prediction_rows(&ctx.state.db, &since).await?,
+    })
+}
+
+/// A train's run today: its timetable places, and the railway between them.
+pub async fn route(ctx: Ctx<AppState>, input: RouteInput) -> RpcResult<TrainRoute> {
+    let number = input.number.trim().to_string();
+    northstack::ensure!(
+        !number.is_empty()
+            && number.len() <= 8
+            && number.chars().all(|c| c.is_ascii_alphanumeric()),
+        "invalid train number"
+    );
+    ensure_stations(&ctx.state).await?;
+    let calls = ctx
+        .state
+        .trafikverket
+        .calls(&number)
+        .await
+        .map_err(upstream)?;
+    let places = db::station_points(&ctx.state.db).await?;
+    let stops: Vec<RouteStop> = calls
+        .into_iter()
+        .filter_map(|c| {
+            let (name, lat, lon) = places.get(&c.sig)?.clone();
+            let passed = c
+                .departure
+                .as_ref()
+                .or(c.arrival.as_ref())
+                .is_some_and(|t| t.actual.is_some());
+            Some(RouteStop {
+                sig: c.sig,
+                name,
+                lat,
+                lon,
+                advertised: c.advertised,
+                arrival: c.arrival,
+                departure: c.departure,
+                track: c.track,
+                canceled: c.canceled,
+                passed,
+            })
+        })
+        .collect();
+    if stops.is_empty() {
+        return Err(RpcError::not_found("no timetable for this train today"));
+    }
+    // Not every place reports a time: everything before the last reported one is passed too.
+    let mut stops = stops;
+    if let Some(last) = stops.iter().rposition(|s| s.passed) {
+        for s in &mut stops[..last] {
+            s.passed = true;
+        }
+    }
+    let points: Vec<[f64; 2]> = stops.iter().map(|s| [s.lat, s.lon]).collect();
+    let legs = northstack::cpu::spawn(move || {
+        points
+            .windows(2)
+            .map(|w| rail_between(w[0], w[1]).unwrap_or_else(|| vec![w[0], w[1]]))
+            .collect::<Vec<_>>()
+    })
+    .await?;
+    Ok(TrainRoute {
+        number,
+        stops,
+        legs,
     })
 }
 

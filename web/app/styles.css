@@ -244,6 +244,23 @@ button { font: inherit; color: inherit; }
   text-shadow: 0 0 3px var(--bg), 0 0 3px var(--bg), 0 0 6px var(--bg);
 }
 
+/* ───────── the followed train's route ───────── */
+.rlabel { pointer-events: none; }
+.rlabel span {
+  position: absolute; left: 11px; top: -10px; white-space: nowrap;
+  font: 500 11.5px/20px "Geist Variable", sans-serif; letter-spacing: -0.01em; color: var(--ink);
+  text-shadow: 0 0 3px var(--bg), 0 0 3px var(--bg), 0 0 6px var(--bg);
+}
+.rlabel b { font-weight: 650; }
+.rlabel em { font-style: normal; font-family: "Geist Mono Variable", monospace; font-size: 11px; color: var(--ink-2); }
+.rlabel i { font-style: normal; font-weight: 650; color: var(--late, #e5484d); }
+.rlabel .passed { color: var(--ink-3); }
+.rlabel .passed b { font-weight: 500; }
+.rlabel .next { font-size: 13px; }
+.rlabel .next em { color: var(--ink); }
+.hud .from b { color: var(--ink-2); font-weight: 600; }
+.hud .from .late { color: var(--late, #e5484d); font-weight: 600; }
+
 /* ───────── operator chips & list groups ───────── */
 .chips {
   display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; scrollbar-width: none;

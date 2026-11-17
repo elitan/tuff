@@ -8,6 +8,7 @@ export const api = {
     list: query("trains.list"),
     positions: query("trains.positions"),
     predictionStats: query("trains.predictionStats"),
+    route: query("trains.route"),
     stations: query("trains.stations"),
   },
 } as const;

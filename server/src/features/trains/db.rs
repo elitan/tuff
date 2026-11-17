@@ -40,6 +40,20 @@ pub async fn station_names(db: &SqlitePool) -> sqlx::Result<HashMap<String, Stri
     Ok(rows.into_iter().map(|r| (r.sig, r.short_name)).collect())
 }
 
+/// Every station with coordinates (timing points too): sig -> (name, lat, lon).
+pub async fn station_points(db: &SqlitePool) -> sqlx::Result<HashMap<String, (String, f64, f64)>> {
+    let rows = sqlx::query!(
+        r#"SELECT sig, name, lat AS "lat!: f64", lon AS "lon!: f64" FROM stations
+           WHERE lat IS NOT NULL AND lon IS NOT NULL"#
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| (r.sig, (r.name, r.lat, r.lon)))
+        .collect())
+}
+
 /// Passenger stations with coordinates.
 pub async fn map_stations(db: &SqlitePool) -> sqlx::Result<Vec<MapStation>> {
     let rows = sqlx::query!(

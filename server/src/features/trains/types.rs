@@ -134,3 +134,51 @@ pub struct PredictionStats {
     /// Last 14 days, newest first.
     pub rows: Vec<PredictionRow>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct RouteInput {
+    /// Advertised train number.
+    pub number: String,
+}
+
+/// A timetable time at a stop.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct StopTime {
+    /// Timetable time, ISO.
+    pub time: String,
+    /// New expected time when late.
+    pub estimated: Option<String>,
+    /// When it actually happened.
+    pub actual: Option<String>,
+}
+
+/// A place in a train's timetable.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct RouteStop {
+    /// Location signature, e.g. "Cst".
+    pub sig: String,
+    pub name: String,
+    pub lat: f64,
+    pub lon: f64,
+    /// A stop for passengers (false: a timing point the train passes).
+    pub advertised: bool,
+    pub arrival: Option<StopTime>,
+    pub departure: Option<StopTime>,
+    pub track: Option<String>,
+    pub canceled: bool,
+    /// The train has left (or, at its last stop, arrived).
+    pub passed: bool,
+}
+
+/// A train's whole run today: its timetable places and the railway between them.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TrainRoute {
+    pub number: String,
+    pub stops: Vec<RouteStop>,
+    /// `legs[i]` is the railway from `stops[i]` to `stops[i + 1]`: [lat, lon] points.
+    pub legs: Vec<Vec<[f64; 2]>>,
+}

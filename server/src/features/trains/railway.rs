@@ -121,13 +121,22 @@ impl Graph {
 
     /// Track points within SNAP_RADIUS_M of a position, nearest first (at most one per segment).
     fn candidates(&self, lat: f64, lon: f64) -> Vec<(Snap, f64)> {
+        self.candidates_within(lat, lon, SNAP_RADIUS_M)
+    }
+
+    /// Track points within `radius` metres of a position, nearest first.
+    fn candidates_within(&self, lat: f64, lon: f64, radius: f64) -> Vec<(Snap, f64)> {
         let (px, py) = (lon * mx(), lat * MY);
         let k = kx(py); // x distances in real metres near here
         let (cx, cy) = ((px / CELL_M).floor() as i64, (py / CELL_M).floor() as i64);
+        let (rx, ry) = (
+            (radius / k / CELL_M).ceil() as i64,
+            (radius / CELL_M).ceil() as i64,
+        );
         let mut seen = HashSet::new();
         let mut out = Vec::new();
-        for dx in -1..=1 {
-            for dy in -1..=1 {
+        for dx in -rx..=rx {
+            for dy in -ry..=ry {
                 for &s in self.grid.get(&(cx + dx, cy + dy)).into_iter().flatten() {
                     if !seen.insert(s) {
                         continue;
@@ -141,7 +150,7 @@ impl Graph {
                     let t = ((k * k * (px - ax) * vx + (py - ay) * vy) / len2).clamp(0.0, 1.0);
                     let (x, y) = (ax + t * vx, ay + t * vy);
                     let d = ((px - x) * k).hypot(py - y);
-                    if d <= SNAP_RADIUS_M {
+                    if d <= radius {
                         out.push((Snap { a, b, t, x, y }, d));
                     }
                 }
@@ -311,6 +320,38 @@ fn simplify(pts: &[(f64, f64)], tol: f64) -> Vec<(f64, f64)> {
         .collect()
 }
 
+/// The railway between two places (e.g. stations, whose points can be a few hundred metres
+/// from the tracks): [lat, lon] points, or None if there's no believable route.
+pub fn rail_between(a: LatLon, b: LatLon) -> Option<Vec<LatLon>> {
+    const STATION_SNAP_M: f64 = 600.0;
+    let g = graph();
+    let mut from = g.candidates_within(a[0], a[1], STATION_SNAP_M);
+    let mut to = g.candidates_within(b[0], b[1], STATION_SNAP_M);
+    from.truncate(4);
+    to.truncate(4);
+    let straight = metres(a[1] * mx(), a[0] * MY, b[1] * mx(), b[0] * MY);
+    let mut best: Option<(f64, Vec<(f64, f64)>)> = None;
+    for (s, ds) in &from {
+        for (e, de) in &to {
+            let limit = best.as_ref().map_or(straight * 2.5 + 5000.0, |b| b.0);
+            if let Some((cost, pts)) = g.route(s, e, limit) {
+                let score = cost + ds + de;
+                if best.as_ref().is_none_or(|b| score < b.0) {
+                    best = Some((score, pts));
+                }
+            }
+        }
+    }
+    let (_, pts) = best?;
+    let k = kx((a[0] + b[0]) / 2.0 * MY);
+    Some(
+        simplify(&pts, AHEAD_TOLERANCE_M / k.min(1.0))
+            .into_iter()
+            .map(|(x, y)| to_lat_lon(x, y))
+            .collect(),
+    )
+}
+
 fn to_lat_lon(x: f64, y: f64) -> LatLon {
     let r6 = |v: f64| (v * 1e6).round() / 1e6;
     [r6(y / MY), r6(x / mx())]
@@ -471,6 +512,13 @@ mod tests {
                 .ahead
                 .is_some()
         );
+        // Stockholm C to Uppsala C along the rails: ~67 km, not the ~64 km straight line
+        let line = rail_between([59.3303, 18.0575], [59.8586, 17.6454]).unwrap();
+        let len: f64 = line
+            .windows(2)
+            .map(|w| metres(w[0][1] * mx(), w[0][0] * MY, w[1][1] * mx(), w[1][0] * MY))
+            .sum();
+        assert!(len > 64_000.0 && len < 75_000.0, "{len}");
         // all of Sweden: Malmö C, Göteborg C, Kiruna
         for (lat, lon) in [(55.6090, 13.0007), (57.7089, 11.9732), (67.83474, 20.1395)] {
             assert!(

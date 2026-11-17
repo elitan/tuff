@@ -20,6 +20,7 @@ pub fn rpc() -> Rpc<AppState> {
         .query("trains.list", procedures::list)
         .query("trains.stations", procedures::stations)
         .query("trains.board", procedures::board)
+        .query("trains.route", procedures::route)
         .query("trains.predictionStats", procedures::prediction_stats)
 }
 

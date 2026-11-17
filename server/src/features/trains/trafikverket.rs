@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::types::{BoardRow, TrainInfo};
+use super::types::{BoardRow, StopTime, TrainInfo};
 
 const API_URL: &str = "https://api.trafikinfo.trafikverket.se/v2/data.json";
 
@@ -156,6 +156,25 @@ impl Trafikverket {
             });
         }
         Ok(seen.into_values().collect())
+    }
+
+    /// A train's timetable today, in order: one entry per place, with arrival and departure.
+    pub async fn calls(&self, number: &str) -> anyhow::Result<Vec<RawCall>> {
+        let xml = format!(
+            r#"<QUERY objecttype="TrainAnnouncement" schemaversion="1.9" orderby="AdvertisedTimeAtLocation" limit="2000">
+            <FILTER><EQ name="AdvertisedTrainIdent" value="{}"/>
+              <GT name="AdvertisedTimeAtLocation" value="$dateadd(-0.14:00:00)"/>
+              <LT name="AdvertisedTimeAtLocation" value="$dateadd(0.14:00:00)"/></FILTER>
+            <INCLUDE>LocationSignature</INCLUDE><INCLUDE>ActivityType</INCLUDE><INCLUDE>Advertised</INCLUDE>
+            <INCLUDE>AdvertisedTimeAtLocation</INCLUDE><INCLUDE>EstimatedTimeAtLocation</INCLUDE><INCLUDE>TimeAtLocation</INCLUDE>
+            <INCLUDE>TrackAtLocation</INCLUDE><INCLUDE>Canceled</INCLUDE><INCLUDE>ScheduledDepartureDateTime</INCLUDE></QUERY>"#,
+            xml_attr(number)
+        );
+        let res = self.query(&xml).await?;
+        let list = res["TrainAnnouncement"]
+            .as_array()
+            .context("TrainAnnouncement")?;
+        Ok(calls(list, Utc::now().timestamp_millis()))
     }
 
     /// Departures and arrivals at a station: 30 min back to 6 h ahead.
@@ -390,6 +409,79 @@ fn millis(iso: &str) -> Option<i64> {
         .map(|t| t.timestamp_millis())
 }
 
+/// One place in a train's timetable.
+#[derive(Debug, Clone)]
+pub struct RawCall {
+    pub sig: String,
+    pub advertised: bool,
+    pub arrival: Option<StopTime>,
+    pub departure: Option<StopTime>,
+    pub track: Option<String>,
+    pub canceled: bool,
+}
+
+/// Turn a train's announcements into its timetable. A train number runs again each day, so
+/// keep the run (ScheduledDepartureDateTime) under way at `now`, or the nearest one.
+fn calls(list: &[Value], now: i64) -> Vec<RawCall> {
+    let time = |a: &Value| a["AdvertisedTimeAtLocation"].as_str().and_then(millis);
+    let mut runs: HashMap<&str, (i64, i64)> = HashMap::new();
+    for a in list {
+        let (Some(run), Some(t)) = (a["ScheduledDepartureDateTime"].as_str(), time(a)) else {
+            continue;
+        };
+        let r = runs.entry(run).or_insert((t, t));
+        r.0 = r.0.min(t);
+        r.1 = r.1.max(t);
+    }
+    let off = |(a, b): (i64, i64)| if now < a { a - now } else { (now - b).max(0) };
+    let Some(run) = runs.iter().min_by_key(|(_, r)| off(**r)).map(|(k, _)| *k) else {
+        return vec![];
+    };
+    let mut rows: Vec<&Value> = list
+        .iter()
+        .filter(|a| a["ScheduledDepartureDateTime"].as_str() == Some(run) && time(a).is_some())
+        .collect();
+    // in time order; at the same minute, the arrival before the departure
+    rows.sort_by_key(|a| (time(a), a["ActivityType"].as_str() == Some("Avgang")));
+    let mut out: Vec<RawCall> = Vec::new();
+    for a in rows {
+        let Some(sig) = a["LocationSignature"].as_str() else {
+            continue;
+        };
+        let st = StopTime {
+            time: a["AdvertisedTimeAtLocation"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
+            estimated: a["EstimatedTimeAtLocation"].as_str().map(str::to_string),
+            actual: a["TimeAtLocation"].as_str().map(str::to_string),
+        };
+        let dep = a["ActivityType"].as_str() == Some("Avgang");
+        // a departure from the place it just arrived at belongs to the same call
+        if dep
+            && let Some(last) = out.last_mut()
+            && last.sig == sig
+            && last.departure.is_none()
+        {
+            last.departure = Some(st);
+            last.advertised |= a["Advertised"].as_bool().unwrap_or(false);
+            continue;
+        }
+        out.push(RawCall {
+            sig: sig.to_string(),
+            advertised: a["Advertised"].as_bool().unwrap_or(false),
+            arrival: (!dep).then(|| st.clone()),
+            departure: dep.then_some(st),
+            track: a["TrackAtLocation"]
+                .as_str()
+                .filter(|t| *t != "x" && !t.is_empty())
+                .map(str::to_string),
+            canceled: a["Canceled"].as_bool().unwrap_or(false),
+        });
+    }
+    out
+}
+
 /// Escape a value for an XML attribute.
 fn xml_attr(v: &str) -> String {
     v.replace('&', "&amp;")
@@ -401,6 +493,74 @@ fn xml_attr(v: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn timetable_keeps_todays_run_and_joins_arrival_and_departure() {
+        let a = |run: &str, sig: &str, kind: &str, t: &str, adv: bool| {
+            serde_json::json!({"ScheduledDepartureDateTime": run, "LocationSignature": sig,
+              "ActivityType": kind, "AdvertisedTimeAtLocation": t, "Advertised": adv})
+        };
+        let list = vec![
+            // yesterday's run of the same number
+            a(
+                "2026-11-16T00:00:00+01:00",
+                "Cst",
+                "Avgang",
+                "2026-11-16T10:00:00+01:00",
+                true,
+            ),
+            a(
+                "2026-11-17T00:00:00+01:00",
+                "U",
+                "Ankomst",
+                "2026-11-17T10:40:00+01:00",
+                true,
+            ),
+            a(
+                "2026-11-17T00:00:00+01:00",
+                "Cst",
+                "Avgang",
+                "2026-11-17T10:00:00+01:00",
+                true,
+            ),
+            a(
+                "2026-11-17T00:00:00+01:00",
+                "Sod",
+                "Avgang",
+                "2026-11-17T10:20:00+01:00",
+                false,
+            ),
+            a(
+                "2026-11-17T00:00:00+01:00",
+                "Sod",
+                "Ankomst",
+                "2026-11-17T10:20:00+01:00",
+                false,
+            ),
+            a(
+                "2026-11-17T00:00:00+01:00",
+                "Kn",
+                "Ankomst",
+                "2026-11-17T10:10:00+01:00",
+                true,
+            ),
+            a(
+                "2026-11-17T00:00:00+01:00",
+                "Kn",
+                "Avgang",
+                "2026-11-17T10:12:00+01:00",
+                true,
+            ),
+        ];
+        let now = millis("2026-11-17T10:15:00+01:00").unwrap();
+        let c = calls(&list, now);
+        let sigs: Vec<_> = c.iter().map(|c| c.sig.as_str()).collect();
+        assert_eq!(sigs, ["Cst", "Kn", "Sod", "U"]);
+        assert!(c[0].arrival.is_none() && c[0].departure.is_some());
+        assert!(c[1].arrival.is_some() && c[1].departure.is_some());
+        assert!(c[2].arrival.is_some() && c[2].departure.is_some() && !c[2].advertised);
+        assert!(c[3].departure.is_none());
+    }
 
     #[test]
     fn parses_points_and_fixes() {
