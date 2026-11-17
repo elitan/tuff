@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import L from "leaflet";
 import { api, type Fix, type MapStation, type RouteStop, type TrainInfo, type TrainRoute } from "northstack";
 import { Track } from "../lib/motion";
@@ -77,6 +77,9 @@ const stopTime = (s: RouteStop) => {
 const escapeHtml = (x: string) => x.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 const ageText = (s: number) => (s < 60 ? `${s} s` : `${Math.floor(s / 60)} min`);
+// Ways to show a selected train and its route, to compare in the browser (styles.css, [data-look]).
+const LOOKS = ["Nu", "Fokus", "Spotlight", "Tunnelbana", "Neon", "Minimal", "Tidtabell", "Kontrast", "Puls", "Gråskala"];
+
 const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 export default function TrainMap() {
@@ -86,7 +89,7 @@ export default function TrainMap() {
   const brandRef = useRef<string | null>(null);   // brand key filter
   const ctl = useRef({   // map actions, for the React UI below
     follow: (_n: string) => {}, unfollow: () => {}, zoom: (_d: number) => {}, fitAll: () => {},
-    fitRoute: () => {},
+    fitRoute: () => {}, relayout: () => {},
     openStation: (_sig: string) => {}, closeStation: () => {}, applyFilter: () => {},
   });
   const [live, setLive] = useState(false);
@@ -94,6 +97,24 @@ export default function TrainMap() {
   const [stations, setStations] = useState<Station[]>([]);
   const [followed, setFollowed] = useState<string | null>(null);
   const [centered, setCentered] = useState(false);
+  const [look, setLook] = useState(() => {
+    try { return Number(localStorage.getItem("look")) || 1; } catch { return 1; }
+  });
+  const pickLook = (n: number) => {
+    setLook(n);
+    try { localStorage.setItem("look", String(n)); } catch { /* private window */ }
+    setTimeout(() => ctl.current.relayout(), 50);   // label sizes change with the look
+  };
+  // keys 1–9 and 0 switch looks while a train is selected
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!followedRef.current || (e.target as HTMLElement)?.tagName === "INPUT") return;
+      const i = "1234567890".indexOf(e.key);
+      if (i >= 0) pickLook(i + 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [route, setRoute] = useState<TrainRoute | null>(null);
   const [board, setBoard] = useState<string | null>(null);
   const [brandKey, setBrandKey] = useState<string | null>(null);
@@ -228,10 +249,12 @@ export default function TrainMap() {
     let remaining: L.LatLngTuple[] = [];
     let labels: { el: HTMLElement; prio: number }[] = [];
     const line = (o: L.PolylineOptions) => L.polyline([], { pane: "route", renderer: routeRenderer, interactive: false, lineCap: "round", lineJoin: "round", ...o });
-    const doneLine = line({ weight: 4, opacity: 0.55 });
-    const behindLine = line({ weight: 4, opacity: 0.55 });
-    const aheadCasing = line({ weight: 8, opacity: 0.9 });
-    const aheadLine = line({ weight: 4.5, opacity: 1 });
+    // Colours and widths come from CSS (styles.css, per look), the options are the fallback.
+    const doneLine = line({ weight: 4, opacity: 0.55, className: "r-done" });
+    const behindLine = line({ weight: 4, opacity: 0.55, className: "r-behind" });
+    const aheadGlow = line({ weight: 18, opacity: 0, className: "r-glow" });
+    const aheadCasing = line({ weight: 8, opacity: 0.9, className: "r-casing" });
+    const aheadLine = line({ weight: 4.5, opacity: 1, className: "r-ahead" });
     const splitRoute = () => {
       const t = routeFor ? trains.get(routeFor) : undefined;
       if (!t || remaining.length < 2) return;
@@ -246,6 +269,7 @@ export default function TrainMap() {
       }
       behindLine.setLatLngs([...remaining.slice(0, at), cut]);
       const ahead = [cut, ...remaining.slice(at)];
+      aheadGlow.setLatLngs(ahead);
       aheadCasing.setLatLngs(ahead);
       aheadLine.setLatLngs(ahead);
     };
@@ -278,6 +302,7 @@ export default function TrainMap() {
       });
       doneLine.setLatLngs(done).setStyle({ color }).addTo(routeLayer);
       behindLine.setStyle({ color }).addTo(routeLayer);
+      aheadGlow.setStyle({ color }).addTo(routeLayer);
       aheadCasing.setStyle({ color: ink }).addTo(routeLayer);
       aheadLine.setStyle({ color }).addTo(routeLayer);
       splitRoute();
@@ -288,6 +313,7 @@ export default function TrainMap() {
         const isNext = i === next;
         L.circleMarker([s.lat, s.lon], {
           pane: "route", renderer: routeRenderer, interactive: false,
+          className: `r-stop${end ? " r-end" : ""}${isNext ? " r-next" : ""}${s.passed ? " r-passed" : ""}`,
           radius: end ? 6.5 : isNext ? 7 : 4.5, weight: 2.2,
           color: ink, opacity: s.passed && !end ? 0.5 : 1,
           fillColor: isNext ? color : end ? ink : css("--bg"), fillOpacity: 1,
@@ -382,6 +408,7 @@ export default function TrainMap() {
     };
     ctl.current = {
       follow, unfollow, fitAll, fitRoute, openStation, closeStation, applyFilter,
+      relayout: declutter,
       zoom: d => (d > 0 ? map.zoomIn() : map.zoomOut()),
     };
     map.on("dragstart", () => setCenter(false));   // user takes over the map → stop centring
@@ -553,7 +580,12 @@ export default function TrainMap() {
   const shownCount = brandKey ? rows.filter(r => r.brand.key === brandKey).length : rows.length;
 
   return (
-    <div className={`${hud ? "has-hud" : ""}${board ? " has-board" : ""}`}>
+    <div
+      className={`${hud ? "has-hud" : ""}${board ? " has-board" : ""}${followed ? " sel" : ""}`}
+      data-look={look}
+      data-route-brand={hud?.brand.key}
+      style={hud ? ({ "--route": hud.brand.color } as CSSProperties) : undefined}
+    >
       <div ref={mapEl} className="map" />
 
       <header className="brand glass">
@@ -645,6 +677,17 @@ export default function TrainMap() {
           }}
           onClose={() => ctl.current.closeStation()}
         />
+      )}
+
+      {hud && (
+        <div className="looks glass" role="radiogroup" aria-label="Utseende">
+          {LOOKS.map((name, i) => (
+            <button key={name} role="radio" aria-checked={look === i + 1}
+              className={look === i + 1 ? "on" : ""} onClick={() => pickLook(i + 1)} title={`${name} (${(i + 1) % 10})`}>
+              <i className="mono">{(i + 1) % 10}</i>{name}
+            </button>
+          ))}
+        </div>
       )}
 
       {hud && (
