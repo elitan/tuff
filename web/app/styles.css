@@ -523,10 +523,10 @@ button { font: inherit; color: inherit; }
   [data-route-brand="sj"] { --route: #cfd6de !important; }   /* SJ's dark grey vanishes on the dark map */
 }
 
-/* 11 Blå: Minimal's thin line in blue, Tidtabell's time cards, the run so far dashed, other trains still there */
+/* 11 Blå: Minimal's thin line in blue, Tidtabell's time cards, the run so far dashed, other trains hidden */
 [data-look="11"] { --rb: #2f5bff; --rb-ink: #fff; }
 @media (prefers-color-scheme: dark) { [data-look="11"] { --rb: #5b8cff; --rb-ink: #06102e; } }
-[data-look="11"].sel .leaflet-marker-icon.dim { opacity: .45; }
+[data-look="11"].sel .leaflet-marker-icon.dim { visibility: hidden; }
 [data-look="11"].sel .leaflet-overlay-pane, [data-look="11"].sel .slabel { opacity: .3; }
 [data-look="11"] .r-casing { stroke: var(--bg); stroke-width: 7px; stroke-opacity: .9; }
 [data-look="11"] .r-ahead { stroke: var(--rb); stroke-width: 3.5px; }
