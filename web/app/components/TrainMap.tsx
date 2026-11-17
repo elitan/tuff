@@ -110,6 +110,7 @@ export default function TrainMap() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!followedRef.current || (e.target as HTMLElement)?.tagName === "INPUT") return;
+      if (e.key === "Escape") { ctl.current.unfollow(); return; }
       const i = "1234567890b".indexOf(e.key);
       if (i >= 0) pickLook(i + 1);
     };
@@ -595,6 +596,7 @@ export default function TrainMap() {
           <div className="word">Tuff</div>
           <div className="sub">Sveriges tåg i realtid</div>
         </div>
+        <Clock />
       </header>
 
       <div className="panel">
@@ -693,6 +695,10 @@ export default function TrainMap() {
 
       {hud && (
         <div className="hud glass" role="status">
+          <button className="hud-close glass" onClick={() => ctl.current.unfollow()}>
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7" /></svg>
+            Stäng
+          </button>
           <div style={{ minWidth: 0 }}>
             <div className="eyebrow"><BrandBadge brand={hud.brand} size="sm" /><span className="badge mono">{hud.n}</span>{hud.product}</div>
             <div className="dest">{hud.to}</div>
@@ -737,6 +743,22 @@ export default function TrainMap() {
       </div>
     </div>
   );
+}
+
+// Swedish time, to the second: what the timetable times and delays are measured against.
+const clockFormat = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Europe/Stockholm", hour: "2-digit", minute: "2-digit", second: "2-digit",
+});
+function Clock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    let timer = 0;
+    // tick on the second boundary so the seconds change with the system clock
+    const tick = () => { setNow(new Date()); timer = window.setTimeout(tick, 1000 - (Date.now() % 1000) + 5); };
+    tick();
+    return () => clearTimeout(timer);
+  }, []);
+  return <time className="clock mono" dateTime={now.toISOString()}>{clockFormat.format(now)}</time>;
 }
 
 function Logo() {
