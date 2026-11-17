@@ -248,7 +248,7 @@ button { font: inherit; color: inherit; }
 
 /* ───────── the followed train's route ───────── */
 .rlabel { pointer-events: none; }
-.leaflet-marker-icon.dim { opacity: .3; }
+.sel .leaflet-marker-icon.dim { visibility: hidden; }   /* only the selected train */
 .rlabel span {
   position: absolute; left: 11px; top: -10px; white-space: nowrap;
   font: 500 11.5px/20px "Geist Variable", sans-serif; letter-spacing: -0.01em; color: var(--ink);
@@ -387,165 +387,30 @@ button { font: inherit; color: inherit; }
 .page-state p { margin: 0 0 14px; color: var(--ink-2); }
 .page-state a, .page-state button { color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; font-weight: 550; }
 
-/* ───────── looks for a selected train (pick one with the bar at the top, or keys 1–0) ───────── */
-.looks {
-  position: absolute; z-index: 1000; top: 12px; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 2px; padding: 4px; border-radius: 999px; max-width: calc(100vw - 24px); overflow-x: auto;
-  scrollbar-width: none;
-}
-.looks button {
-  display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer;
-  font: 600 12px/1 "Geist Variable", sans-serif; color: var(--ink-2);
-  background: none; border: 0; border-radius: 999px; padding: 7px 10px;
-}
-.looks button i { font-style: normal; font-size: 10px; color: var(--ink-3); }
-.looks button:hover { background: var(--hover); color: var(--ink); }
-.looks button.on { background: var(--ink); color: var(--bg); }
-.looks button.on i { color: var(--bg); opacity: .6; }
-.looks { top: calc(64px + env(safe-area-inset-top)); }
-
 /* the selected train is never shrunk when zoomed out */
 .far .tm.followed { transform: scale(.9); }
 .sel .leaflet-marker-icon:has(.tm.followed) { z-index: 2000 !important; }
 
-/* common pieces */
-.r-glow { opacity: 0; }
-.sel .leaflet-marker-icon.dim { transition: opacity .3s, filter .3s; }
-.leaflet-tile-pane, .leaflet-overlay-pane { transition: opacity .3s, filter .3s; }
-@keyframes flow { to { stroke-dashoffset: -40; } }
-@keyframes bigping { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(2.6); opacity: 0; } }
-
-/* 1 Nu: as before */
-
-/* 2 Fokus: only the selected train, its route as a bold line with a dark casing */
-[data-look="2"].sel .leaflet-marker-icon.dim { visibility: hidden; }
-[data-look="2"].sel .leaflet-overlay-pane, [data-look="2"].sel .slabel { opacity: .2; }
-[data-look="2"] .r-casing { stroke: var(--ink); stroke-width: 10px; stroke-opacity: 1; }
-[data-look="2"] .r-ahead { stroke: var(--signal); stroke-width: 5px; }
-[data-look="2"] .r-done, [data-look="2"] .r-behind { stroke: var(--ink-2); stroke-width: 4px; stroke-opacity: .7; }
-[data-look="2"] .rlabel span { background: var(--glass-strong); border: 1px solid var(--hair); border-radius: 7px;
-  padding: 0 7px; text-shadow: none; box-shadow: var(--shadow); top: -11px; }
-
-/* 3 Spotlight: the map dims away, the route glows amber */
-[data-look="3"].sel .leaflet-tile-pane { opacity: .35; }
-[data-look="3"].sel .leaflet-overlay-pane, [data-look="3"].sel .slabel { opacity: .15; }
-[data-look="3"].sel .leaflet-marker-icon.dim { opacity: .12; filter: grayscale(1); }
-[data-look="3"] .r-glow { stroke: var(--signal); opacity: .22; stroke-width: 22px; }
-[data-look="3"] .r-casing { stroke: var(--signal); stroke-opacity: .45; stroke-width: 11px; }
-[data-look="3"] .r-ahead { stroke: #fff3d6; stroke-width: 4px; }
-[data-look="3"] .r-done, [data-look="3"] .r-behind { stroke: var(--signal); stroke-opacity: .45; stroke-width: 3px; }
-[data-look="3"] .r-stop { stroke: var(--signal); fill: var(--bg); }
-[data-look="3"] .r-next, [data-look="3"] .r-end { fill: var(--signal); }
-[data-look="3"] .rlabel .next b, [data-look="3"] .rlabel .end b { color: var(--signal); }
-
-/* 4 Tunnelbana: a thick metro line in the company colour, big ringed stops, names only */
-[data-look="4"].sel .leaflet-tile-pane { opacity: .55; }
-[data-look="4"].sel .leaflet-overlay-pane, [data-look="4"].sel .slabel { opacity: 0; }
-[data-look="4"].sel .leaflet-marker-icon.dim { opacity: .2; filter: grayscale(1); }
-[data-look="4"] .r-casing { stroke: var(--bg); stroke-width: 13px; stroke-opacity: 1; }
-[data-look="4"] .r-ahead { stroke: var(--signal); stroke-width: 8px; }
-[data-look="4"] .r-done, [data-look="4"] .r-behind { stroke: var(--signal); stroke-width: 8px; stroke-opacity: .35; }
-[data-look="4"] .r-stop { stroke: var(--ink); stroke-width: 3.5px; fill: var(--bg); stroke-opacity: 1; }
-[data-look="4"] .r-next { fill: var(--signal); }
-[data-look="4"] .rlabel span { font-weight: 700; font-size: 12.5px; letter-spacing: 0; left: 14px; }
-[data-look="4"] .rlabel em, [data-look="4"] .rlabel i { display: none; }
-[data-look="4"] .rlabel .next em, [data-look="4"] .rlabel .next i { display: inline; }
-
-/* 5 Neon: dark map, a glowing cyan line with motion along the way ahead */
-[data-look="5"].sel .leaflet-tile-pane { opacity: .3; }
-[data-look="5"].sel .leaflet-overlay-pane, [data-look="5"].sel .slabel { opacity: .1; }
-[data-look="5"].sel .leaflet-marker-icon.dim { opacity: .15; }
-[data-look="5"] .r-glow { stroke: #22d3ee; opacity: .25; stroke-width: 16px; }
-[data-look="5"] .r-casing { stroke: #22d3ee; stroke-opacity: .5; stroke-width: 7px; }
-[data-look="5"] .r-ahead { stroke: #e0fbff; stroke-width: 2.5px; stroke-dasharray: 14 6; animation: flow 1.2s linear infinite; }
-[data-look="5"] .r-done, [data-look="5"] .r-behind { stroke: #22d3ee; stroke-opacity: .3; stroke-width: 2px; }
-[data-look="5"] .r-stop { stroke: #22d3ee; fill: var(--bg); }
-[data-look="5"] .r-next, [data-look="5"] .r-end { fill: #22d3ee; }
-[data-look="5"] .rlabel .next b, [data-look="5"] .rlabel .end b { color: #22d3ee; }
-
-/* 6 Minimal: nothing but the train and a crisp line; times only where it matters */
-[data-look="6"].sel .leaflet-marker-icon.dim { visibility: hidden; }
-[data-look="6"].sel .leaflet-overlay-pane, [data-look="6"].sel .slabel { opacity: 0; }
-[data-look="6"] .r-casing { stroke-opacity: 0; }
-[data-look="6"] .r-ahead { stroke: var(--ink); stroke-width: 3px; }
-[data-look="6"] .r-done, [data-look="6"] .r-behind { stroke: var(--ink-3); stroke-width: 2px; stroke-dasharray: 1 5; stroke-opacity: 1; }
-[data-look="6"] .r-stop { stroke: var(--ink); stroke-width: 2px; fill: var(--bg); }
-[data-look="6"] .r-passed { stroke: var(--ink-3); }
-[data-look="6"] .r-next, [data-look="6"] .r-end { fill: var(--ink); }
-[data-look="6"] .rlabel em { display: none; }
-[data-look="6"] .rlabel .next em, [data-look="6"] .rlabel .end em { display: inline; }
-
-/* 7 Tidtabell: every stop as a little timetable card */
-[data-look="7"].sel .leaflet-tile-pane { opacity: .7; }
-[data-look="7"].sel .leaflet-overlay-pane, [data-look="7"].sel .slabel { opacity: .15; }
-[data-look="7"].sel .leaflet-marker-icon.dim { opacity: .2; filter: grayscale(1); }
-[data-look="7"] .r-casing { stroke: var(--ink); stroke-width: 9px; stroke-opacity: 1; }
-[data-look="7"] .r-ahead { stroke: var(--signal); stroke-width: 5px; }
-[data-look="7"] .r-done, [data-look="7"] .r-behind { stroke: var(--ink-3); stroke-width: 4px; stroke-opacity: .8; }
-[data-look="7"] .rlabel span { display: flex; flex-direction: row-reverse; gap: 6px; align-items: baseline;
-  background: var(--glass-strong); border: 1px solid var(--hair); border-radius: 8px; padding: 2px 8px;
-  text-shadow: none; box-shadow: var(--shadow); top: -14px; left: 13px; }
-[data-look="7"] .rlabel em { font-size: 12px; color: var(--ink); font-weight: 600; }
-[data-look="7"] .rlabel .passed { opacity: .55; }
-[data-look="7"] .rlabel .next { background: var(--signal); border-color: var(--signal); color: #1a1100; }
-[data-look="7"] .rlabel .next em { color: #1a1100; }
-
-/* 8 Kontrast: grey world, one red line with a white casing */
-[data-look="8"].sel .leaflet-tile-pane { opacity: .6; }
-[data-look="8"].sel .leaflet-overlay-pane, [data-look="8"].sel .slabel { opacity: .2; }
-[data-look="8"].sel .leaflet-marker-icon.dim { opacity: .35; filter: grayscale(1) contrast(.6); }
-[data-look="8"] .r-casing { stroke: #fff; stroke-width: 11px; stroke-opacity: 1; }
-[data-look="8"] .r-ahead { stroke: #ff2d2d; stroke-width: 6px; }
-[data-look="8"] .r-done, [data-look="8"] .r-behind { stroke: #ff2d2d; stroke-opacity: .4; stroke-width: 4px; stroke-dasharray: 6 6; }
-[data-look="8"] .r-stop { stroke: #ff2d2d; stroke-width: 3px; fill: #fff; }
-[data-look="8"] .r-next, [data-look="8"] .r-end { fill: #ff2d2d; stroke: #fff; }
-
-/* 9 Puls: the train is the hero: big pulse, moving dots along the way ahead */
-[data-look="9"].sel .leaflet-marker-icon.dim { opacity: .25; }
-[data-look="9"].sel .leaflet-overlay-pane, [data-look="9"].sel .slabel { opacity: .3; }
-[data-look="9"] .tm.followed { transform: scale(1.35); }
-[data-look="9"] .far .tm.followed { transform: scale(1.1); }
-[data-look="9"] .tm.followed .halo { background: var(--signal); animation: bigping 1.6s ease-out infinite; }
-[data-look="9"] .r-casing { stroke: var(--ink); stroke-width: 9px; stroke-opacity: .9; }
-[data-look="9"] .r-ahead { stroke: var(--signal); stroke-width: 5px; stroke-dasharray: 0 12; stroke-linecap: round;
-  animation: flow 1s linear infinite; }
-[data-look="9"] .r-glow { stroke: var(--signal); opacity: .9; stroke-width: 5px; stroke-opacity: .35; }
-[data-look="9"] .r-done, [data-look="9"] .r-behind { stroke: var(--ink-3); stroke-width: 3px; stroke-opacity: .7; }
-
-/* 10 Gråskala: everything else drained of colour; the route in the company colour */
-[data-look="10"].sel .leaflet-tile-pane { opacity: .5; }
-[data-look="10"].sel .leaflet-overlay-pane, [data-look="10"].sel .slabel { opacity: .25; }
-[data-look="10"].sel .leaflet-marker-icon.dim { opacity: .4; filter: grayscale(1) brightness(.8); }
-[data-look="10"] .r-glow { stroke: var(--route); opacity: .25; stroke-width: 16px; }
-[data-look="10"] .r-casing { stroke: var(--ink); stroke-width: 10px; stroke-opacity: 1; }
-[data-look="10"] .r-ahead { stroke: var(--route); stroke-width: 6px; filter: saturate(1.6) brightness(1.4); }
-[data-look="10"] .r-done, [data-look="10"] .r-behind { stroke: var(--route); stroke-opacity: .5; stroke-width: 4px; }
-[data-look="10"] .r-next { fill: var(--route); }
-@media (prefers-color-scheme: dark) {
-  [data-route-brand="sj"] { --route: #cfd6de !important; }   /* SJ's dark grey vanishes on the dark map */
-}
-
-/* 11 Blå: Minimal's thin line in blue, Tidtabell's time cards, the run so far dashed, other trains hidden */
-[data-look="11"] { --rb: #2f5bff; --rb-ink: #fff; }
-@media (prefers-color-scheme: dark) { [data-look="11"] { --rb: #5b8cff; --rb-ink: #06102e; } }
-[data-look="11"].sel .leaflet-marker-icon.dim { visibility: hidden; }
-[data-look="11"].sel .leaflet-overlay-pane, [data-look="11"].sel .slabel { opacity: .3; }
-[data-look="11"] .r-casing { stroke: var(--bg); stroke-width: 7px; stroke-opacity: .9; }
-[data-look="11"] .r-ahead { stroke: var(--rb); stroke-width: 3.5px; }
-[data-look="11"] .r-done, [data-look="11"] .r-behind { stroke: var(--rb); stroke-width: 2.5px; stroke-opacity: .6; stroke-dasharray: 5 5; }
-[data-look="11"] .r-stop { stroke: var(--rb); stroke-width: 2.2px; fill: var(--bg); }
-[data-look="11"] .r-passed { stroke-opacity: .55; }
-[data-look="11"] .r-next, [data-look="11"] .r-end { fill: var(--rb); stroke: var(--bg); }
-[data-look="11"] .rlabel span { display: flex; flex-direction: row-reverse; gap: 6px; align-items: baseline;
+/* the selected train's route: a thin blue line, the run so far dashed, a time card at each stop */
+:root { --rb: #2f5bff; --rb-ink: #fff; }
+@media (prefers-color-scheme: dark) { :root { --rb: #5b8cff; --rb-ink: #06102e; } }
+.sel .leaflet-overlay-pane, .sel .slabel { opacity: .3; }
+.r-casing { stroke: var(--bg); stroke-width: 7px; stroke-opacity: .9; }
+.r-ahead { stroke: var(--rb); stroke-width: 3.5px; }
+.r-done, .r-behind { stroke: var(--rb); stroke-width: 2.5px; stroke-opacity: .6; stroke-dasharray: 5 5; }
+.r-stop { stroke: var(--rb); stroke-width: 2.2px; fill: var(--bg); }
+.r-passed { stroke-opacity: .55; }
+.r-next, .r-end { fill: var(--rb); stroke: var(--bg); }
+.rlabel span { display: flex; flex-direction: row-reverse; gap: 6px; align-items: baseline;
   background: var(--glass-strong); border: 1px solid var(--hair); border-radius: 7px; padding: 1px 7px;
   text-shadow: none; box-shadow: var(--shadow); top: -12px; left: 12px; font-size: 11.5px; line-height: 18px; }
-[data-look="11"] .rlabel em { font-size: 11.5px; color: var(--ink); font-weight: 600; }
-[data-look="11"] .rlabel .passed { opacity: .6; }
-[data-look="11"] .rlabel .next { background: var(--rb); border-color: var(--rb); color: var(--rb-ink); font-size: 12.5px; }
-[data-look="11"] .rlabel .next em { color: var(--rb-ink); }
-[data-look="11"] .rlabel .next i { color: var(--rb-ink); }
-[data-look="11"] .tm.followed .body { stroke: var(--rb); }
-[data-look="11"] .tm.followed .halo { background: color-mix(in srgb, var(--rb) 25%, transparent); }
+.rlabel em { font-size: 11.5px; color: var(--ink); font-weight: 600; }
+.rlabel .passed { opacity: .6; }
+.rlabel .next { background: var(--rb); border-color: var(--rb); color: var(--rb-ink); font-size: 12.5px; }
+.rlabel .next em { color: var(--rb-ink); }
+.rlabel .next i { color: var(--rb-ink); }
+.tm.followed .body { stroke: var(--rb); }
+.tm.followed .halo { background: color-mix(in srgb, var(--rb) 25%, transparent); }
 
 /* a clear way out of a selected train, just above its card */
 .hud-close {
