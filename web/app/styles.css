@@ -421,3 +421,13 @@ button { font: inherit; color: inherit; }
 }
 .hud-close svg { width: 12px; height: 12px; }
 .hud-close:hover { background: var(--glass-strong); }
+
+/* the selected train's speed, as a card on the other side from the stop cards */
+.tm .tspeed { display: none; }
+.tm.followed .tspeed:not(:empty) {
+  display: block; position: absolute; right: 38px; top: 50%; transform: translateY(-50%);
+  white-space: nowrap; pointer-events: none; z-index: 1;
+  background: var(--rb); color: var(--rb-ink); border-radius: 7px; padding: 1px 7px; box-shadow: var(--shadow);
+  font: 650 12.5px/18px "Geist Mono Variable", monospace; font-variant-numeric: tabular-nums;
+}
+.far .tm.followed .tspeed { transform: translateY(-50%) scale(1.1); }
