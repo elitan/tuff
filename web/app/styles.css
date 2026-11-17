@@ -98,6 +98,8 @@ button { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums; display: none;
 }
 .labels .tm .tlabel { display: block; }
+.tm .tlabel i { font-style: normal; font-weight: 500; color: var(--ink-2); }
+.tm .tlabel i:not(:empty)::before { content: " · "; color: var(--ink-3); }
 
 /* ───────── brand ───────── */
 .brand {
@@ -422,12 +424,8 @@ button { font: inherit; color: inherit; }
 .hud-close svg { width: 12px; height: 12px; }
 .hud-close:hover { background: var(--glass-strong); }
 
-/* the selected train's speed, as a card on the other side from the stop cards */
-.tm .tspeed { display: none; }
-.tm.followed .tspeed:not(:empty) {
-  display: block; position: absolute; right: 38px; top: 50%; transform: translateY(-50%);
-  white-space: nowrap; pointer-events: none; z-index: 1;
-  background: var(--rb); color: var(--rb-ink); border-radius: 7px; padding: 1px 7px; box-shadow: var(--shadow);
-  font: 650 12.5px/18px "Geist Mono Variable", monospace; font-variant-numeric: tabular-nums;
-}
-.far .tm.followed .tspeed { transform: translateY(-50%) scale(1.1); }
+/* the selected train's number and speed card: always shown, in the route's blue */
+.tm.followed .tlabel { display: block; background: var(--rb); color: var(--rb-ink); border-color: var(--rb);
+  font-size: 12px; line-height: 18px; box-shadow: var(--shadow); }
+.tm.followed .tlabel i, .tm.followed .tlabel i::before { color: var(--rb-ink); }
+.far .tm.followed .tlabel { transform: translateY(-50%) scale(1.1); }

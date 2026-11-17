@@ -50,7 +50,7 @@ type Row = { n: string; from: string; to: string; product: string; brand: Brand;
 // marker's transform: a tooltip is repositioned on every move, reading its size each time.
 const icon = (n: string) => L.divIcon({
   className: "", iconSize: [44, 44], iconAnchor: [22, 22],
-  html: `<div class="tm"><span class="halo"></span><span class="tlabel">${n.replace(/[^\w-]/g, "")}</span><span class="tspeed"></span><svg viewBox="0 0 44 44">
+  html: `<div class="tm"><span class="halo"></span><span class="tlabel">${n.replace(/[^\w-]/g, "")}<i></i></span><svg viewBox="0 0 44 44">
     <g class="dir">
       <path class="body" d="M16.5 21 V9.5 C16.5 5 19 2.5 22 2.5 C25 2.5 27.5 5 27.5 9.5 V21 Q27.5 22.5 26 22.5 H18 Q16.5 22.5 16.5 21 Z"/>
       <path class="glass" d="M18.6 8.6 C19.2 6 20.4 4.9 22 4.9 C23.6 4.9 24.8 6 25.4 8.6 Z"/>
@@ -366,7 +366,6 @@ export default function TrainMap() {
       t.marker.setZIndexOffset(1000);
       applyFilter();
       showRoute(n);
-      showSpeed(t);
       map.flyTo(t.marker.getLatLng(), Math.max(map.getZoom(), FOLLOW_ZOOM), { duration: 1.2 });
     };
     const unfollow = () => {
@@ -400,6 +399,13 @@ export default function TrainMap() {
     map.on("zoomstart", () => { flying = true; });
     map.on("zoomend", () => { flying = false; });
 
+    // the number card next to each train (zoomed in) also shows its speed
+    const labelSpeed = (t: TrainState) => {
+      const el = t.tm.querySelector<HTMLElement>(".tlabel i");
+      const text = t.p.speed != null ? `${t.p.speed} km/h` : "";
+      if (el && el.textContent !== text) el.textContent = text;
+    };
+
     // ----- positions -----
     const upsert = (p: Position) => {
       if (Date.now() - p.ts > MAX_AGE_MS) return;
@@ -417,11 +423,13 @@ export default function TrainMap() {
         marker.on("click", () => follow(p.n));
         turn(state, TURN_MS);
         styleTrain(p.n, state);
+        labelSpeed(state);
       } else {
         if (p.ts <= t.p.ts) return;          // replayed / out-of-order event
         t.track.add(ll, p.ts, p.path, p.speed, p.ahead);
         if (!p.path && p.bearing != null) t.target = p.bearing;
         t.p = p;
+        labelSpeed(t);
       }
     };
 
@@ -473,17 +481,9 @@ export default function TrainMap() {
     };
     raf = requestAnimationFrame(animate);
 
-    // the selected train carries a card with its speed, like the stop cards on its route
-    const showSpeed = (t: TrainState | undefined) => {
-      const el = t?.tm.querySelector<HTMLElement>(".tspeed");
-      if (!t || !el) return;
-      const text = t.p.speed != null ? `${t.p.speed} km/h` : "";
-      if (el.textContent !== text) el.textContent = text;
-    };
     // once a second: fade/remove silent trains and refresh the UI
     const tick = setInterval(() => {
       const now = Date.now();
-      showSpeed(trains.get(followedRef.current ?? ""));
       for (const [n, t] of trains) {
         if (now - t.p.ts > MAX_AGE_MS) {
           if (n === followedRef.current) unfollow();
